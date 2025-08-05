@@ -200,12 +200,19 @@ update_system() {
         apt-transport-https ca-certificates gnupg lsb-release
         ufw fail2ban nginx openssl
         logrotate rsync cron jq net-tools dnsutils
-        unattended-upgrades apt-listchanges
+        unattended-upgrades apt-listchanges mailutils
         software-properties-common iptables-persistent
     )
+    local critical_packages=("ufw" "fail2ban" "nginx")
     for package in "${packages[@]}"; do
         print_info "Instalare $package..."
-        apt install -y -qq "$package" || print_warning "Nu am putut instala $package"
+        if ! apt install -y -qq "$package"; then
+            if [[ " ${critical_packages[*]} " =~ " ${package} " ]]; then
+                print_error "Nu am putut instala pachetul critic: $package. Verifică logurile apt."
+            else
+                print_warning "Nu am putut instala pachetul: $package"
+            fi
+        fi
     done
     print_success "Sistem actualizat și pachete instalate"
 }
@@ -578,7 +585,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 86400;
+        proxy_read_timeout 90s;
     }
     location /api/ {
         limit_req zone=api burst=50 nodelay;
@@ -644,7 +651,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 86400;
+        proxy_read_timeout 90s;
     }
     location /api/ {
         limit_req zone=api burst=50 nodelay;
@@ -701,7 +708,7 @@ EOF
 install_ssl() {
     if [ -n "$DOMAIN_NAME" ] && [ -n "$SSL_EMAIL" ]; then
         print_step "Instalarea certificatului SSL Let's Encrypt..."
-        apt install -y certbot python3-certbot-nginx
+        apt install -y certbot python3-certbot-nginx || print_error "Instalarea Certbot a eșuat. Verifică logurile apt."
         systemctl start nginx
         certbot certonly --nginx \
             -d "$DOMAIN_NAME" \
@@ -1019,7 +1026,188 @@ echo "• Verificare porturi: sudo ss -tlnp"
 echo ""
 EOF
     chmod +x /usr/local/bin/system-check
-    # Poți adăuga aici și backup, restore, monitor etc dacă vrei complet (pot livra și pe acestea la cerere)
+
+    # Script de Backup
+    cat > /usr/local/bin/docker-backup << 'EOF'
+#!/bin/bash
+set -eo pipefail
+# Script pentru backup Docker Manager (MongoDB + Volume)
+
+# --- Configurare ---
+APP_DIR="/opt/docker-manager"
+BACKUP_BASE_DIR="/opt/backups/daily"
+RETENTION_DAYS=7
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+BACKUP_NAME="docker-manager-backup-${TIMESTAMP}"
+BACKUP_DIR="${BACKUP_BASE_DIR}/${BACKUP_NAME}"
+FINAL_ARCHIVE_PATH="${BACKUP_BASE_DIR}/${BACKUP_NAME}.tar.gz"
+LOG_FILE="/var/log/docker-backup.log"
+
+# --- Funcții ---
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"; }
+
+cleanup_on_error() {
+    log "❌ A apărut o eroare. Anulez operațiunea."
+    [ -d "$BACKUP_DIR" ] && rm -rf "$BACKUP_DIR" && log "🗑️  Director temporar șters."
+    cd "$APP_DIR" && docker compose start >/dev/null 2>&1
+    log "🚀 Serviciile (posibil oprite) au fost repornite."
+    exit 1
+}
+trap cleanup_on_error ERR
+
+log "--- 🚀 Început backup Docker Manager ---"
+
+# Verificări
+if [ "$EUID" -ne 0 ]; then log "❌ Root necesar."; exit 1; fi
+if ! command -v docker &>/dev/null || ! docker compose version &>/dev/null; then log "❌ Docker/Compose lipsește."; exit 1; fi
+if [ ! -d "$APP_DIR" ]; then log "❌ $APP_DIR nu există."; exit 1; fi
+if [ ! -f "$APP_DIR/.env" ]; then log "❌ $APP_DIR/.env lipsește."; exit 1; fi
+export $(grep -v '^#' "$APP_DIR/.env" | xargs)
+
+mkdir -p "$BACKUP_DIR"
+log "📂 Creat director de backup: $BACKUP_DIR"
+cd "$APP_DIR"
+
+MONGO_CONTAINER=$(docker compose ps -q mongodb)
+[ -z "$MONGO_CONTAINER" ] && log "❌ Container MongoDB nu a fost găsit." && exit 1
+
+log "🛑 Opresc serviciile dependente de DB..."
+docker compose stop backend frontend
+
+log "📦 Fac backup la baza de date MongoDB..."
+docker exec "$MONGO_CONTAINER" mongodump --archive --gzip --db=docker_manager --username="${MONGO_ROOT_USER}" --password="${MONGO_ROOT_PASSWORD}" --authenticationDatabase=admin > "${BACKUP_DIR}/mongodb_dump.gz"
+
+log "🚀 Repornesc serviciile oprite..."
+docker compose start backend frontend
+
+log "📦 Arhivez volumele de date (/opt/docker-data)..."
+tar -czf "${BACKUP_DIR}/docker-data.tar.gz" -C /opt/docker-data .
+
+log "📦 Arhivez fișierele de configurare (.env, docker-compose.yml)..."
+tar -czf "${BACKUP_DIR}/config-files.tar.gz" -C "$APP_DIR" .env docker-compose.yml
+
+log "💯 Arhivă finală creată: ${FINAL_ARCHIVE_PATH}"
+tar -czf "${FINAL_ARCHIVE_PATH}" -C "${BACKUP_DIR}" .
+
+rm -rf "${BACKUP_DIR}" # Păstrăm doar arhiva finală
+
+log "🧹 Curăț backup-urile mai vechi de $RETENTION_DAYS zile..."
+find "$BACKUP_BASE_DIR" -type f -name "*.tar.gz" -mtime +$RETENTION_DAYS -exec log "🗑️  Șterg: {}" \; -exec rm -f {} \;
+log "✅ Curățare finalizată."
+
+log "--- 🎉 Backup Docker Manager finalizat cu succes ---"
+exit 0
+EOF
+    chmod +x /usr/local/bin/docker-backup
+
+    # Script de Restore
+    cat > /usr/local/bin/docker-restore << 'EOF'
+#!/bin/bash
+set -eo pipefail
+# Script pentru restaurarea unui backup Docker Manager
+
+# --- Configurare ---
+APP_DIR="/opt/docker-manager"
+DATA_DIR="/opt/docker-data"
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+
+if [ "$EUID" -ne 0 ]; then log "❌ Root necesar."; exit 1; fi
+if [ -z "$1" ]; then log "❌ Utilizare: $0 /cale/catre/backup.tar.gz"; exit 1; fi
+BACKUP_FILE="$1"
+if [ ! -f "$BACKUP_FILE" ]; then log "❌ Fișierul $BACKUP_FILE nu există."; exit 1; fi
+
+log "⚠️  ATENȚIE! Această operațiune va suprascrie datele și configurațiile curente."
+read -p "Ești sigur că vrei să continui? (y/n): " -n 1 -r; echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then log "🚫 Operațiune anulată."; exit 0; fi
+
+cd "$APP_DIR"
+log "🛑 Opresc toate serviciile..."
+docker compose down --remove-orphans
+
+log "🧹 Șterg datele vechi..."
+rm -rf "${DATA_DIR}"/*
+mkdir -p "$DATA_DIR"
+
+TEMP_DIR=$(mktemp -d)
+log "📦 Extrag backup-ul în: $TEMP_DIR"
+tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
+
+if [ -f "${TEMP_DIR}/config-files.tar.gz" ]; then
+    log "📦 Restaurez fișierele de configurare..."
+    tar -xzf "${TEMP_DIR}/config-files.tar.gz" -C "$APP_DIR"
+else
+    log "⚠️  Nu am găsit arhiva de configurare în backup."
+fi
+
+export $(grep -v '^#' "$APP_DIR/.env" | xargs)
+
+if [ -f "${TEMP_DIR}/docker-data.tar.gz" ]; then
+    log "📦 Restaurez volumele de date..."
+    tar -xzf "${TEMP_DIR}/docker-data.tar.gz" -C "$DATA_DIR"
+else
+    log "❌ Nu am găsit arhiva cu volumele de date."; rm -rf "$TEMP_DIR"; exit 1
+fi
+
+log "🚀 Pornesc baza de date pentru restaurare..."
+docker compose up -d mongodb redis
+MONGO_CONTAINER=$(docker compose ps -q mongodb)
+log "ℹ️  Aștept ca MongoDB să fie gata (15s)..."
+sleep 15
+
+if [ -f "${TEMP_DIR}/mongodb_dump.gz" ]; then
+    log "📦 Restaurez baza de date MongoDB..."
+    cat "${TEMP_DIR}/mongodb_dump.gz" | docker exec -i "$MONGO_CONTAINER" mongorestore --archive --gzip --username="${MONGO_ROOT_USER}" --password="${MONGO_ROOT_PASSWORD}" --authenticationDatabase=admin --drop
+else
+    log "❌ Nu am găsit dump-ul bazei de date."; rm -rf "$TEMP_DIR"; exit 1
+fi
+
+log "🚀 Pornesc toate serviciile..."
+docker compose up -d
+
+log "🧹 Curăț fișierele temporare..."
+rm -rf "$TEMP_DIR"
+
+log "--- 🎉 Restaurare finalizată cu succes! ---"
+exit 0
+EOF
+    chmod +x /usr/local/bin/docker-restore
+
+    # Script de Monitor
+    cat > /usr/local/bin/docker-monitor << 'EOF'
+#!/bin/bash
+# Wrapper pentru 'docker stats' pentru a afișa un monitor live.
+APP_DIR="/opt/docker-manager"
+if [ ! -d "$APP_DIR" ]; then echo "❌ $APP_DIR nu există."; exit 1; fi
+cd "$APP_DIR"
+PROJECT_NAME=$(docker compose ls --format '{{.Name}}' | head -n 1)
+if [ -z "$PROJECT_NAME" ]; then echo "❌ Nu am putut găsi proiectul Docker Compose."; exit 1; fi
+echo "📊 Monitorizare live pentru proiectul '$PROJECT_NAME' (Ctrl+C pentru a ieși)..."
+docker stats $(docker ps --filter "label=com.docker.compose.project=${PROJECT_NAME}" -q)
+EOF
+    chmod +x /usr/local/bin/docker-monitor
+
+    # Script de Notificare
+    cat > /usr/local/bin/notify-admin << 'EOF'
+#!/bin/bash
+# Trimite o notificare pe email-ul de admin.
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+if [ "$#" -ne 2 ]; then echo "Utilizare: $0 \"Subiect\" \"Corp mesaj\""; exit 1; fi
+SUBJECT="$1"
+BODY="$2"
+ENV_FILE="/opt/docker-manager/.env"
+ADMIN_EMAIL="root@localhost"
+if [ -f "$ENV_FILE" ]; then
+    ADMIN_EMAIL_TMP=$(grep "^ALERT_EMAIL=" "$ENV_FILE" | cut -d'=' -f2)
+    if [ -n "$ADMIN_EMAIL_TMP" ]; then
+      ADMIN_EMAIL="$ADMIN_EMAIL_TMP"
+    fi
+fi
+echo "$BODY" | mail -s "$SUBJECT" "$ADMIN_EMAIL"
+log "📧 Notificare trimisă către $ADMIN_EMAIL"
+EOF
+    chmod +x /usr/local/bin/notify-admin
+
     print_success "Scripturi de management create"
 }
 
