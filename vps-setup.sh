@@ -8,31 +8,42 @@
 # Data: 2025
 #################################################
 
+# Oprește scriptul la orice eroare neprinsă
 set -e
 
+# Setează un PATH de bază pentru a asigura disponibilitatea comenzilor esențiale
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin:$PATH"
 
-# Culori pentru output
+# --- Variabile Globale și Constante ---
+
+# Culori pentru output-ul in consolă, pentru o lizibilitate mai bună
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
 readonly BLUE='\033[0;34m'
 readonly PURPLE='\033[0;35m'
 readonly CYAN='\033[0;36m'
-readonly NC='\033[0m'
+readonly NC='\033[0m' # No Color
 
+# Constante de configurare pentru mediul de bază
 readonly ADMIN_USER="dockeradmin"
 readonly SSH_PORT="2222"
 readonly HOSTNAME="docker-manager"
 readonly TIMEZONE="Europe/Bucharest"
 readonly LOG_FILE="/var/log/vps-setup.log"
 
+# Variabile ce vor fi populate de utilizator în timpul execuției
 DOMAIN_NAME=""
 SSL_EMAIL=""
 SSH_PUBLIC_KEY=""
 ALERT_EMAIL=""
 ADMIN_PASSWORD=""
 
+# --- Funcții Utilitare pentru Logging și Output ---
+
+#
+# Afișează un header principal pentru script.
+#
 print_header() {
     echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║              🛡️  SETUP VPS DOCKER MANAGER v3.0                   ║${NC}"
@@ -41,24 +52,44 @@ print_header() {
     echo ""
 }
 
+#
+# Afișează și înregistrează în log un mesaj ce indică un nou pas de instalare.
+# Argumente:
+#   $1 - Mesajul de afișat.
+#
 print_step() {
     local message="[PASUL $(date '+%H:%M:%S')] $1"
     echo -e "${CYAN}${message}${NC}"
     echo "$(date '+%Y-%m-%d %H:%M:%S') - ${message}" >> "$LOG_FILE"
 }
 
+#
+# Afișează și înregistrează în log un mesaj de succes.
+# Argumente:
+#   $1 - Mesajul de succes.
+#
 print_success() {
     local message="✅ $1"
     echo -e "${GREEN}${message}${NC}"
     echo "$(date '+%Y-%m-%d %H:%M:%S') - SUCCESS: $1" >> "$LOG_FILE"
 }
 
+#
+# Afișează și înregistrează în log un mesaj de avertisment.
+# Argumente:
+#   $1 - Mesajul de avertisment.
+#
 print_warning() {
     local message="⚠️  $1"
     echo -e "${YELLOW}${message}${NC}"
     echo "$(date '+%Y-%m-%d %H:%M:%S') - WARNING: $1" >> "$LOG_FILE"
 }
 
+#
+# Afișează și înregistrează în log un mesaj de eroare, apoi oprește scriptul.
+# Argumente:
+#   $1 - Mesajul de eroare.
+#
 print_error() {
     local message="❌ $1"
     echo -e "${RED}${message}${NC}"
@@ -66,16 +97,32 @@ print_error() {
     exit 1
 }
 
+#
+# Afișează și înregistrează în log un mesaj informativ.
+# Argumente:
+#   $1 - Mesajul informativ.
+#
 print_info() {
     local message="ℹ️  $1"
     echo -e "${BLUE}${message}${NC}"
     echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO: $1" >> "$LOG_FILE"
 }
 
+#
+# Generează o parolă aleatorie, sigură.
+# Utilizează OpenSSL pentru a genera date aleatorii, apoi le filtrează
+# pentru a elimina caracterele ce pot cauza probleme în fișiere de configurare.
+#
 generate_password() {
     openssl rand -base64 32 | tr -d "=+/" | cut -c1-25
 }
 
+# --- Funcții de Verificare Inițială ---
+
+#
+# Verifică dacă scriptul este rulat cu privilegii de root (UID 0).
+# Oprește execuția dacă nu este root.
+#
 check_root() {
     if [ "$EUID" -ne 0 ]; then
         print_error "Acest script trebuie rulat ca root. Folosește: sudo $0"
@@ -83,22 +130,33 @@ check_root() {
     print_success "Rulare ca root confirmată"
 }
 
+#
+# Verifică compatibilitatea sistemului de operare și resursele hardware.
+# Se asigură că rulează pe Debian 11+ și avertizează dacă resursele sunt scăzute.
+#
 check_system() {
     print_step "Verificarea sistemului..."
     if [ ! -f /etc/os-release ]; then
         print_error "Nu pot determina sistemul de operare"
     fi
+
+    # Încarcă variabilele din /etc/os-release (ex: ID, PRETTY_NAME)
     . /etc/os-release
+
     if [ "$ID" != "debian" ]; then
         print_error "Acest script este doar pentru Debian. OS detectat: $PRETTY_NAME"
     fi
     print_success "Sistem compatibil: $PRETTY_NAME"
+
     local debian_version=$(cat /etc/debian_version | cut -d. -f1)
     if [ "$debian_version" -lt 11 ]; then
         print_error "Versiune Debian prea veche. Minim necesar: Debian 11"
     fi
+
+    # Verifică resursele sistemului (RAM și Disk)
     local memory_mb=$(free -m | awk 'NR==2{print $2}')
     local disk_gb=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+
     if [ "$memory_mb" -lt 1024 ]; then
         print_warning "RAM insuficient: ${memory_mb}MB (recomandat: 2GB+)"
     fi
@@ -108,12 +166,21 @@ check_system() {
     print_info "Resurse: ${memory_mb}MB RAM, ${disk_gb}GB disk disponibil"
 }
 
+# --- Colectare Date de la Utilizator ---
+
+#
+# Colectează interactiv datele de configurare de la utilizator.
+# Parolă, cheie SSH, domeniu, email, etc.
+# Setează variabilele globale corespunzătoare.
+#
 collect_config() {
     print_step "Configurarea parametrilor..."
     echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${PURPLE}║                      CONFIGURARE INIȚIALĂ                        ║${NC}"
     echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
+
+    # Colectează parola pentru utilizatorul admin
     while true; do
         echo -e "${CYAN}1. Parolă pentru utilizatorul $ADMIN_USER:${NC}"
         echo -e "${YELLOW}   ⚠️  IMPORTANT: Salvează această parolă într-un loc sigur!${NC}"
@@ -132,6 +199,7 @@ collect_config() {
             print_warning "Parolele nu se potrivesc"
         fi
     done
+
     echo ""
     echo -e "${CYAN}2. Cheia SSH publică (foarte recomandat pentru securitate):${NC}"
     echo -e "${YELLOW}   Exemplu: ssh-rsa AAAAB3NzaC1... user@computer${NC}"
@@ -141,12 +209,15 @@ collect_config() {
     else
         print_warning "Nu ai furnizat o cheie SSH - vei folosi doar parola pentru autentificare"
     fi
+
     echo ""
     echo -e "${CYAN}3. Configurare Domeniu (opțional):${NC}"
     read -p "   Numele domeniului (ex: docker.example.com sau Enter pentru IP): " DOMAIN_NAME
     if [ -n "$DOMAIN_NAME" ]; then
+        # Validare simplă a formatului domeniului
         if [[ "$DOMAIN_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$ ]]; then
             read -p "   Email pentru certificatul SSL: " SSL_EMAIL
+            # Validare simplă a formatului email-ului
             if [[ "$SSL_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
                 print_success "Domeniu configurat: $DOMAIN_NAME"
             else
@@ -160,15 +231,19 @@ collect_config() {
     else
         print_info "Se va configura pentru acces prin IP"
     fi
+
     echo ""
     echo -e "${CYAN}4. Email pentru alerte sistem (opțional):${NC}"
     read -p "   Email pentru notificări: " ALERT_EMAIL
     if [ -n "$ALERT_EMAIL" ]; then
         print_success "Email alerte: $ALERT_EMAIL"
     fi
+
     echo ""
     print_success "Configurație completă!"
     echo ""
+
+    # Afișează un sumar al configurării și cere confirmarea finală
     echo -e "${YELLOW}Verifică configurația:${NC}"
     echo "• Utilizator admin: $ADMIN_USER"
     echo "• Port SSH: $SSH_PORT"
@@ -183,18 +258,30 @@ collect_config() {
     fi
 }
 
+# --- Funcții de Configurare a Sistemului ---
+
+#
+# Actualizează pachetele sistemului și instalează dependențele necesare.
+# Se ocupă de deblocarea managerului de pachete apt și instalează o listă
+# predefinită de pachete esențiale și utilitare.
+#
 update_system() {
     print_step "Actualizarea sistemului..."
+    # Înlătură posibile lock-uri apt care pot bloca instalarea
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock*
     dpkg --configure -a
+
+    # Rulează apt update, cu o reîncercare în caz de eșec
     apt update -qq || {
         print_warning "Prima încercare de update a eșuat, reîncerc..."
         sleep 2
         apt update
     }
     apt upgrade -y -qq
+
+    # Lista de pachete necesare pentru server
     local packages=(
         curl wget git nano vim htop tree
         apt-transport-https ca-certificates gnupg lsb-release
@@ -204,6 +291,8 @@ update_system() {
         software-properties-common iptables-persistent
     )
     local critical_packages=("ufw" "fail2ban" "nginx")
+
+    # Instalează fiecare pachet, cu tratare specială pentru cele critice
     for package in "${packages[@]}"; do
         print_info "Instalare $package..."
         if ! apt install -y -qq "$package"; then
@@ -217,13 +306,23 @@ update_system() {
     print_success "Sistem actualizat și pachete instalate"
 }
 
+#
+# Configurează setările de bază ale sistemului.
+# Include timezone, hostname, fișier swap și actualizări automate (unattended-upgrades).
+#
 configure_system() {
     print_step "Configurarea sistemului de bază..."
+
+    # Setează fusul orar
     timedatectl set-timezone "$TIMEZONE"
     print_success "Timezone setat: $TIMEZONE"
+
+    # Setează hostname-ul sistemului
     hostnamectl set-hostname "$HOSTNAME"
     grep -q "$HOSTNAME" /etc/hosts || echo "127.0.0.1 $HOSTNAME" >> /etc/hosts
     print_success "Hostname setat: $HOSTNAME"
+
+    # Creează și activează un fișier swap dacă nu există
     if [ ! -f /swapfile ]; then
         print_info "Creez fișier swap de 2G..."
         fallocate -l 2G /swapfile
@@ -233,6 +332,8 @@ configure_system() {
         echo '/swapfile none swap sw 0 0' >> /etc/fstab
         print_success "Swap creat și activat"
     fi
+
+    # Configurează actualizările automate de securitate
     cat > /etc/apt/apt.conf.d/50unattended-upgrades << EOF
 Unattended-Upgrade::Allowed-Origins {
     "\${distro_id}:\${distro_codename}";
@@ -253,8 +354,15 @@ APT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades
     print_success "Actualizări automate configurate"
 }
 
+#
+# Creează și configurează utilizatorul de administrare.
+# Setează parola, adaugă utilizatorul la grupul sudo, configurează accesul sudo fără parolă
+# și adaugă cheia SSH publică (dacă a fost furnizată).
+#
 create_admin_user() {
     print_step "Crearea utilizatorului admin: $ADMIN_USER"
+
+    # Creează utilizatorul dacă nu există, altfel se asigură că este în grupul sudo
     if ! id "$ADMIN_USER" &>/dev/null; then
         useradd -m -s /bin/bash -G sudo "$ADMIN_USER"
         print_success "Utilizator $ADMIN_USER creat"
@@ -262,11 +370,17 @@ create_admin_user() {
         print_info "Utilizatorul $ADMIN_USER există deja"
         usermod -aG sudo "$ADMIN_USER"
     fi
+
+    # Setează parola pentru utilizator
     echo "$ADMIN_USER:$ADMIN_PASSWORD" | chpasswd
     print_success "Parolă setată pentru $ADMIN_USER"
+
+    # Configurează acces sudo fără parolă pentru acest utilizator
     echo "$ADMIN_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$ADMIN_USER
     chmod 0440 /etc/sudoers.d/$ADMIN_USER
     print_success "Acces sudo configurat"
+
+    # Creează directorul .ssh și adaugă cheia publică
     local ssh_dir="/home/$ADMIN_USER/.ssh"
     runuser -u "$ADMIN_USER" -- mkdir -p "$ssh_dir"
     chmod 700 "$ssh_dir"
@@ -276,24 +390,41 @@ create_admin_user() {
         chmod 600 "$ssh_dir/authorized_keys"
         print_success "Cheia SSH adăugată pentru $ADMIN_USER"
     fi
+
+    # Creează un director de lucru pentru utilizator
     runuser -u "$ADMIN_USER" -- mkdir -p "/home/$ADMIN_USER/docker-manager"
     print_success "Utilizator admin configurat complet"
 }
 # ==================== CONFIGURARE SSH ======================
+#
+# Aplică o configurație SSH securizată.
+# Schimbă portul, dezactivează login-ul ca root, permite doar anumiți utilizatori,
+# și impune algoritmi criptografici moderni.
+#
 configure_ssh() {
     print_step "Configurarea securității SSH..."
+    # Creează un backup al configurației SSH originale
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d)
+
+    # Generează o nouă configurație sshd_config securizată
     cat > /etc/ssh/sshd_config << EOF
+# Port custom pentru a reduce atacurile automate
 Port $SSH_PORT
 Protocol 2
 AddressFamily any
 ListenAddress 0.0.0.0
 ListenAddress ::
+
+# Chei host
 HostKey /etc/ssh/ssh_host_rsa_key
 HostKey /etc/ssh/ssh_host_ecdsa_key
 HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Logging
 SyslogFacility AUTH
 LogLevel INFO
+
+# Autentificare
 LoginGraceTime 60
 PermitRootLogin no
 StrictModes yes
@@ -301,33 +432,46 @@ MaxAuthTries 3
 MaxSessions 10
 PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
-PasswordAuthentication yes
+PasswordAuthentication yes # Menținută ca backup
 PermitEmptyPasswords no
 ChallengeResponseAuthentication no
+
+# Restricționare acces
 AllowUsers $ADMIN_USER
+
+# Dezactivare funcționalități periculoase
 AllowAgentForwarding no
 AllowTcpForwarding no
 X11Forwarding no
+PermitUserEnvironment no
+
+# Mesaje și keep-alive
 PrintMotd no
 PrintLastLog yes
 TCPKeepAlive yes
-UsePAM yes
-PermitUserEnvironment no
 ClientAliveInterval 300
 ClientAliveCountMax 2
 MaxStartups 10:30:60
 Banner none
+
+# SFTP
 Subsystem sftp /usr/lib/openssh/sftp-server
+
+# Algoritmi moderni și siguri
 HostKeyAlgorithms ssh-ed25519,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256
 KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
 Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
 MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128-etm@openssh.com
 EOF
+
+    # Testează validitatea noii configurații înainte de a o aplica
     if sshd -t; then
         print_success "Configurație SSH validă"
     else
         print_error "Configurație SSH invalidă - verifică logurile"
     fi
+
+    # Regenerează cheile host ale serverului pentru securitate sporită
     rm -f /etc/ssh/ssh_host_*
     ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ""
     ssh-keygen -t ecdsa -b 521 -f /etc/ssh/ssh_host_ecdsa_key -N ""
@@ -336,21 +480,34 @@ EOF
 }
 
 # ================== FIREWALL (UFW) ===========================
+#
+# Configurează firewall-ul UFW (Uncomplicated Firewall).
+# Resetează regulile, setează politici default (deny incoming), și permite
+# traficul doar pe porturile necesare (SSH, HTTP, HTTPS, și porturile aplicației).
+#
 configure_firewall() {
     print_step "Configurarea firewall-ului (UFW)..."
     ufw --force disable >/dev/null 2>&1
     echo "y" | ufw --force reset >/dev/null 2>&1
+
+    # Setează politicile de bază: blochează tot ce intră, permite tot ce iese
     ufw default deny incoming >/dev/null 2>&1
     ufw default allow outgoing >/dev/null 2>&1
     ufw default deny routed >/dev/null 2>&1
+
+    # Permite traficul pe porturile esențiale
     ufw allow "$SSH_PORT"/tcp comment 'SSH' >/dev/null 2>&1
     ufw allow 80/tcp comment 'HTTP' >/dev/null 2>&1
     ufw allow 443/tcp comment 'HTTPS' >/dev/null 2>&1
     ufw allow 3000/tcp comment 'Docker Manager Frontend' >/dev/null 2>&1
     ufw allow 3001/tcp comment 'Docker Manager API' >/dev/null 2>&1
+
+    # Limitează numărul de încercări de conectare SSH pentru a preveni atacurile brute-force
     ufw limit "$SSH_PORT"/tcp comment 'SSH rate limit' >/dev/null 2>&1
+
     ufw logging on >/dev/null 2>&1
     echo "y" | ufw enable >/dev/null 2>&1
+
     if ufw status | grep -q "Status: active"; then
         print_success "Firewall UFW configurat și activat"
     else
@@ -359,8 +516,14 @@ configure_firewall() {
 }
 
 # ================== FAIL2BAN ===========================
+#
+# Configurează Fail2Ban pentru a bloca adresele IP care încearcă atacuri.
+# Creează o configurație locală (jail.local) cu reguli pentru SSH, Nginx,
+# și definește filtre custom pentru a detecta activități malițioase (scanări, bad bots).
+#
 configure_fail2ban() {
     print_step "Configurarea Fail2Ban..."
+    # Creează fișierul de configurare local pentru a suprascrie setările default
     cat > /etc/fail2ban/jail.local << EOF
 [DEFAULT]
 bantime = 3600
@@ -371,6 +534,7 @@ sendername = Fail2Ban
 mta = sendmail
 action = %(action_mwl)s
 ignoreip = 127.0.0.1/8 ::1
+
 [sshd]
 enabled = true
 port = $SSH_PORT
@@ -379,6 +543,7 @@ logpath = /var/log/auth.log
 maxretry = 3
 bantime = 3600
 findtime = 600
+
 [nginx-http-auth]
 enabled = true
 filter = nginx-http-auth
@@ -386,6 +551,7 @@ port = http,https
 logpath = /var/log/nginx/error.log
 maxretry = 3
 bantime = 3600
+
 [nginx-limit-req]
 enabled = true
 filter = nginx-limit-req
@@ -394,6 +560,7 @@ logpath = /var/log/nginx/error.log
 maxretry = 10
 bantime = 600
 findtime = 60
+
 [nginx-noscript]
 enabled = true
 port = http,https
@@ -401,6 +568,7 @@ filter = nginx-noscript
 logpath = /var/log/nginx/access.log
 maxretry = 5
 bantime = 600
+
 [nginx-badbots]
 enabled = true
 port = http,https
@@ -409,20 +577,26 @@ logpath = /var/log/nginx/access.log
 maxretry = 2
 bantime = 3600
 EOF
+
+    # Filtru pentru a bloca tentativele de a accesa scripturi vulnerabile (ex: .php)
     cat > /etc/fail2ban/filter.d/nginx-noscript.conf << 'EOF'
 [Definition]
 failregex = ^<HOST> -.*"(GET|POST|HEAD).*\.(php|asp|exe|pl|cgi|scgi)
 ignoreregex =
 EOF
+
+    # Filtru pentru a bloca boți cunoscuți ca fiind malițioși sau nedoriți
     cat > /etc/fail2ban/filter.d/nginx-badbots.conf << 'EOF'
 [Definition]
 badbots = Googlebot|bingbot|Baiduspider|yandexbot|facebookexternalhit|twitterbot|rogerbot|linkedinbot|embedly|quora link preview|showyoubot|outbrain|pinterest|slackbot|vkShare|W3C_Validator|whatsapp|Mediatoolkitbot|ahrefsbot|semrushbot|dotbot|mj12bot|seznambot|blexbot|ezooms|majestic12|spbot|seokicks|smtbot|scrapbot|g00g1e|addthis|blekkobot|magpie-crawler|grapeshotcrawler|livelapbot|trendictionbot|baiduspider|dataprovider|mixrankbot|simplecrawler|cliqzbot
 failregex = ^<HOST> -.*"(GET|POST|HEAD).*HTTP.*".*(?:%(badbots)s).*"$
 ignoreregex =
 EOF
+
     systemctl stop fail2ban >/dev/null 2>&1
     systemctl start fail2ban
     systemctl enable fail2ban
+
     if systemctl is-active --quiet fail2ban; then
         print_success "Fail2Ban configurat și activ"
         print_info "Jails active: $(fail2ban-client status | grep "Jail list" | cut -d: -f2)"
@@ -432,18 +606,29 @@ EOF
 }
 
 # ============= DOCKER & GRUPUL DOCKER ADMIN ===============
+#
+# Instalează și configurează Docker și Docker Compose.
+# Adaugă repository-ul oficial Docker, instalează pachetele, și configurează
+# daemon-ul Docker cu setări de logging, stocare și securitate.
+#
 install_docker() {
     print_step "Instalarea Docker..."
+    # Curăță versiuni vechi de Docker, dacă există
     for pkg in docker docker-engine docker.io containerd runc; do
         apt remove -y $pkg 2>/dev/null || true
     done
+
+    # Adaugă cheia GPG și repository-ul oficial Docker
     mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     echo \
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
       $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
     apt update
     apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # Creează fișierul de configurare pentru daemon-ul Docker
     mkdir -p /etc/docker
     cat > /etc/docker/daemon.json << EOF
 {
@@ -474,10 +659,12 @@ install_docker() {
   }
 }
 EOF
-    # Adaug utilizatorul la grupul docker
+
+    # Adaugă utilizatorul admin la grupul docker pentru a-i permite să ruleze comenzi docker
     usermod -aG docker "$ADMIN_USER"
     systemctl restart docker
     systemctl enable docker
+
     if docker --version >/dev/null 2>&1; then
         print_success "Docker instalat: $(docker --version)"
     else
@@ -490,54 +677,77 @@ EOF
     fi
 }
 # ===================== NGINX ============================
+#
+# Configurează Nginx ca reverse proxy pentru aplicația Docker Manager.
+# Generează o configurație principală (nginx.conf) și o configurație de site
+# specifică, adaptată pentru acces prin domeniu (HTTPS) sau direct prin IP (HTTP).
+#
 configure_nginx() {
     print_step "Configurarea Nginx..."
+    # Detectează IP-ul public al serverului
     local server_ip=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "YOUR_SERVER_IP")
+
+    # Creează o configurație Nginx globală, optimizată și securizată
     cat > /etc/nginx/nginx.conf << 'EOF'
 user www-data;
 worker_processes auto;
 pid /run/nginx.pid;
 error_log /var/log/nginx/error.log;
+
 events {
     worker_connections 1024;
     multi_accept on;
     use epoll;
 }
+
 http {
     sendfile on;
     tcp_nopush on;
     tcp_nodelay on;
     keepalive_timeout 65;
     types_hash_max_size 2048;
-    server_tokens off;
+    server_tokens off; # Nu afișa versiunea Nginx
     client_max_body_size 100M;
+
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
+
+    # Setări SSL/TLS
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+
     access_log /var/log/nginx/access.log;
+
+    # Compresie Gzip
     gzip on;
     gzip_vary on;
     gzip_proxied any;
     gzip_comp_level 6;
     gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
+
+    # Headers de securitate
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+    # Zone pentru rate limiting
     limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
     limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
     limit_req_zone $binary_remote_addr zone=auth:10m rate=3r/s;
     limit_conn_zone $binary_remote_addr zone=addr:10m;
+
     include /etc/nginx/conf.d/*.conf;
     include /etc/nginx/sites-enabled/*;
 }
 EOF
 
+    # Generează configurația de site în funcție de prezența unui domeniu
     if [ -n "$DOMAIN_NAME" ]; then
-        # Config Nginx pentru domeniu (cu redirect la HTTPS)
+        # Configurație pentru domeniu, cu redirect de la HTTP la HTTPS
         cat > /etc/nginx/sites-available/docker-manager << EOF
+# Upstreams pentru serviciile backend și frontend
 upstream docker_api {
     server 127.0.0.1:3001 max_fails=3 fail_timeout=30s;
     keepalive 32;
@@ -546,10 +756,13 @@ upstream docker_frontend {
     server 127.0.0.1:3000 max_fails=3 fail_timeout=30s;
     keepalive 32;
 }
+
+# Server block pentru HTTP, redirecționează către HTTPS
 server {
     listen 80;
     listen [::]:80;
     server_name $DOMAIN_NAME www.$DOMAIN_NAME;
+    # Locație pentru validarea Certbot
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -557,24 +770,37 @@ server {
         return 301 https://\$server_name\$request_uri;
     }
 }
+
+# Server block pentru HTTPS
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
     server_name $DOMAIN_NAME www.$DOMAIN_NAME;
+
+    # Certificat SSL (inițial self-signed, apoi înlocuit de Certbot)
     ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
     ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+
+    # Optimizări SSL
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:50m;
     ssl_session_tickets off;
+
+    # Headers de securitate pentru HTTPS
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+
     access_log /var/log/nginx/docker-manager.access.log;
     error_log /var/log/nginx/docker-manager.error.log;
+
+    # Aplică rate limiting
     limit_req zone=general burst=20 nodelay;
     limit_conn addr 10;
+
+    # Reverse proxy pentru frontend
     location / {
         proxy_pass http://docker_frontend;
         proxy_http_version 1.1;
@@ -587,6 +813,8 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_read_timeout 90s;
     }
+
+    # Reverse proxy pentru API
     location /api/ {
         limit_req zone=api burst=50 nodelay;
         proxy_pass http://docker_api;
@@ -596,11 +824,14 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300;
+        # Setări CORS
         add_header Access-Control-Allow-Origin \$http_origin always;
         add_header Access-Control-Allow-Methods 'GET, POST, PUT, DELETE, OPTIONS' always;
         add_header Access-Control-Allow-Headers 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
         add_header Access-Control-Expose-Headers 'Content-Length,Content-Range' always;
     }
+
+    # Reverse proxy pentru WebSockets
     location /ws {
         proxy_pass http://docker_api;
         proxy_http_version 1.1;
@@ -610,8 +841,10 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 86400;
+        proxy_read_timeout 86400; # Timeout lung pentru conexiuni persistente
     }
+
+    # Endpoint pentru health checks
     location /health {
         access_log off;
         return 200 "healthy\n";
@@ -620,7 +853,7 @@ server {
 }
 EOF
     else
-        # Config Nginx pentru IP direct (fără SSL)
+        # Configurație Nginx pentru acces direct prin IP (doar HTTP)
         cat > /etc/nginx/sites-available/docker-manager << EOF
 upstream docker_api {
     server 127.0.0.1:3001 max_fails=3 fail_timeout=30s;
@@ -630,17 +863,22 @@ upstream docker_frontend {
     server 127.0.0.1:3000 max_fails=3 fail_timeout=30s;
     keepalive 32;
 }
+
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name $server_ip _;
+
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+
     access_log /var/log/nginx/docker-manager.access.log;
     error_log /var/log/nginx/docker-manager.error.log;
+
     limit_req zone=general burst=20 nodelay;
     limit_conn addr 10;
+
     location / {
         proxy_pass http://docker_frontend;
         proxy_http_version 1.1;
@@ -653,6 +891,7 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_read_timeout 90s;
     }
+
     location /api/ {
         limit_req zone=api burst=50 nodelay;
         proxy_pass http://docker_api;
@@ -663,6 +902,7 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300;
     }
+
     location /ws {
         proxy_pass http://docker_api;
         proxy_http_version 1.1;
@@ -674,6 +914,7 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 86400;
     }
+
     location /health {
         access_log off;
         return 200 "healthy\n";
@@ -683,7 +924,8 @@ server {
 EOF
     fi
 
-    # Certificat self-signed temporar dacă e domeniu
+    # Generează un certificat self-signed temporar dacă s-a configurat un domeniu.
+    # Acest certificat va fi folosit de Nginx până când Certbot îl înlocuiește.
     if [ -n "$DOMAIN_NAME" ]; then
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
             -keyout /etc/ssl/private/nginx-selfsigned.key \
@@ -691,11 +933,16 @@ EOF
             -subj "/C=RO/ST=Romania/L=Bucharest/O=Docker Manager/CN=$DOMAIN_NAME" \
             2>/dev/null
     fi
+
+    # Activează noul site și dezactivează site-ul default
     rm -f /etc/nginx/sites-enabled/default
     ln -sf /etc/nginx/sites-available/docker-manager /etc/nginx/sites-enabled/
+
+    # Creează directorul pentru validarea Certbot
     mkdir -p /var/www/certbot
     chown www-data:www-data /var/www/certbot
 
+    # Verifică sintaxa configurației Nginx
     if nginx -t 2>/dev/null; then
         print_success "Nginx configurat corect"
     else
@@ -705,11 +952,18 @@ EOF
 }
 
 # ============= SSL Let's Encrypt (Certbot) ==================
+#
+# Instalează un certificat SSL gratuit de la Let's Encrypt folosind Certbot.
+# Se execută doar dacă un domeniu și un email au fost furnizate.
+# Configurează reînnoirea automată a certificatului.
+#
 install_ssl() {
     if [ -n "$DOMAIN_NAME" ] && [ -n "$SSL_EMAIL" ]; then
         print_step "Instalarea certificatului SSL Let's Encrypt..."
         apt install -y certbot python3-certbot-nginx || print_error "Instalarea Certbot a eșuat. Verifică logurile apt."
         systemctl start nginx
+
+        # Obține certificatul de la Let's Encrypt
         certbot certonly --nginx \
             -d "$DOMAIN_NAME" \
             -d "www.$DOMAIN_NAME" \
@@ -719,12 +973,18 @@ install_ssl() {
             --redirect \
             --staple-ocsp \
             --must-staple
+
+        # Dacă certificatul a fost obținut cu succes, actualizează configurația Nginx
         if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
             sed -i "s|ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;|ssl_certificate /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem;|" \
                 /etc/nginx/sites-available/docker-manager
             sed -i "s|ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;|ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;|" \
                 /etc/nginx/sites-available/docker-manager
+
+            # Generează parametrii Diffie-Hellman pentru o securitate sporită
             openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048 2>/dev/null
+
+            # Adaugă un cron job pentru reînnoirea automată a certificatului
             echo "0 0,12 * * * root certbot renew --quiet --post-hook 'systemctl reload nginx'" >> /etc/crontab
             print_success "Certificat SSL instalat pentru $DOMAIN_NAME"
         else
@@ -738,6 +998,10 @@ install_ssl() {
 }
 
 # ============= DIRECTOARE APLICAȚIE =============
+#
+# Creează structura de directoare necesară pentru aplicație, date și backup-uri.
+# Asigură permisiunile corecte pentru utilizatorul admin.
+#
 create_directories() {
     print_step "Crearea structurii de directoare..."
     local dirs=(
@@ -762,16 +1026,24 @@ create_directories() {
         mkdir -p "$dir"
         chown "$ADMIN_USER:$ADMIN_USER" "$dir"
     done
+    # Creează un link simbolic pentru acces facil din home-ul utilizatorului
     ln -sf /opt/docker-manager "/home/$ADMIN_USER/docker-manager"
     print_success "Structura de directoare creată"
 }
 # ================== CONFIG FILES & DOCKER-COMPOSE ======================
+#
+# Creează fișierele de configurare inițiale pentru Docker Manager.
+# Generează docker-compose.yml, un .env.template cu valori pre-completate,
+# și un script init.sh pentru a facilita pornirea aplicației.
+#
 create_config_files() {
     print_step "Crearea fișierelor de configurare..."
     local server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
 
+    # Generează fișierul docker-compose.yml
     cat > /opt/docker-manager/docker-compose.yml << EOF
 version: '3.8'
+
 services:
   mongodb:
     image: mongo:7.0
@@ -791,6 +1063,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
   redis:
     image: redis:7-alpine
     container_name: docker_manager_redis
@@ -805,8 +1078,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
   backend:
-    image: docker-manager-backend:latest
+    image: docker-manager-backend:latest # Se așteaptă ca această imagine să fie construită manual
     container_name: docker_manager_backend
     restart: unless-stopped
     ports:
@@ -822,7 +1096,7 @@ services:
       - JWT_REFRESH_SECRET=\${JWT_REFRESH_SECRET}
       - CORS_ORIGIN=\${CORS_ORIGIN}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Acces la Docker socket
       - /opt/docker-manager/logs:/app/logs
       - /opt/docker-manager/uploads:/app/uploads
     networks:
@@ -835,8 +1109,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
   frontend:
-    image: docker-manager-frontend:latest
+    image: docker-manager-frontend:latest # Se așteaptă ca această imagine să fie construită manual
     container_name: docker_manager_frontend
     restart: unless-stopped
     ports:
@@ -853,6 +1128,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
 networks:
   docker_manager_network:
     driver: bridge
@@ -861,33 +1137,52 @@ networks:
         - subnet: 172.20.0.0/16
 EOF
 
+    # Generează un template pentru fișierul .env
     cat > /opt/docker-manager/.env.template << EOF
+# --- Environment variables for Docker Manager ---
+
+# General
 NODE_ENV=production
 APP_NAME=Docker Manager
 APP_VERSION=1.0.0
 PORT=3001
 LOG_LEVEL=info
+TZ=$TIMEZONE
+
+# API & Frontend URLs
 CORS_ORIGIN=$([ -n "$DOMAIN_NAME" ] && echo "https://$DOMAIN_NAME,https://www.$DOMAIN_NAME" || echo "http://$server_ip")
 REACT_APP_API_URL=$([ -n "$DOMAIN_NAME" ] && echo "https://$DOMAIN_NAME/api" || echo "http://$server_ip/api")
 REACT_APP_WS_URL=$([ -n "$DOMAIN_NAME" ] && echo "wss://$DOMAIN_NAME/ws" || echo "ws://$server_ip/ws")
+
+# Database (MongoDB)
 MONGO_ROOT_USER=docker_admin
 MONGO_ROOT_PASSWORD=$(generate_password)
 MONGO_DB=docker_manager
-MONGODB_URI=mongodb://docker_admin:\${MONGO_ROOT_PASSWORD}@mongodb:27017/docker_manager?authSource=admin
+MONGODB_URI=mongodb://\${MONGO_ROOT_USER}:\${MONGO_ROOT_PASSWORD}@mongodb:27017/\${MONGO_DB}?authSource=admin
+
+# Cache (Redis)
 REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_PASSWORD=$(generate_password)
+
+# Security (JWT)
 JWT_SECRET=$(generate_password)
 JWT_REFRESH_SECRET=$(generate_password)
+
+# Docker
 DOCKER_HOST=unix:///var/run/docker.sock
 DATA_DIR=/opt/docker-data
+
+# Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# Notifications
 ALERT_EMAIL=${ALERT_EMAIL:-root@localhost}
 SLACK_WEBHOOK=
-TZ=$TIMEZONE
 EOF
 
+    # Creează un script de inițializare pentru utilizator
     cat > /opt/docker-manager/init.sh << 'EOF'
 #!/bin/bash
 GREEN='\033[0;32m'
@@ -901,13 +1196,13 @@ echo ""
 if [ ! -f .env ]; then
     echo -e "${YELLOW}Creez fișierul .env din template...${NC}"
     cp .env.template .env
-    echo -e "${GREEN}✅ Fișier .env creat${NC}"
+    echo -e "${GREEN}✅ Fișier .env creat. Editează-l dacă este necesar.${NC}"
 else
     echo -e "${GREEN}✅ Fișier .env există${NC}"
 fi
 echo ""
 echo -e "${BLUE}Pași următori:${NC}"
-echo "1. Încarcă codul sursă al aplicației"
+echo "1. Încarcă codul sursă al aplicației (backend, frontend)"
 echo "2. Construiește imaginile: docker compose build"
 echo "3. Pornește serviciile: docker compose up -d"
 echo "4. Verifică status: docker compose ps"
@@ -920,11 +1215,19 @@ EOF
 }
 
 # ========== SCRIPTURI MANAGEMENT/UTILITARE (backup, restore, monitor etc.) =============
+#
+# Creează o serie de scripturi utilitare în /usr/local/bin pentru a facilita
+# administrarea serverului: system-check, docker-backup, docker-restore, etc.
+#
 create_management_scripts() {
     print_step "Crearea scripturilor de management..."
 
+    # Script pentru o verificare rapidă a stării sistemului
     cat > /usr/local/bin/system-check << 'EOF'
 #!/bin/bash
+#
+# system-check: Afișează un raport sumar despre starea sistemului.
+#
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -1027,12 +1330,14 @@ echo ""
 EOF
     chmod +x /usr/local/bin/system-check
 
-    # Script de Backup
+    # Script pentru backup-ul aplicației (bază de date și volume)
     cat > /usr/local/bin/docker-backup << 'EOF'
 #!/bin/bash
 set -eo pipefail
-# Script pentru backup Docker Manager (MongoDB + Volume)
-
+#
+# docker-backup: Creează un backup complet al aplicației Docker Manager.
+# Include dump-ul bazei de date MongoDB și arhivarea volumelor de date și a fișierelor de configurare.
+#
 # --- Configurare ---
 APP_DIR="/opt/docker-manager"
 BACKUP_BASE_DIR="/opt/backups/daily"
@@ -1071,7 +1376,7 @@ cd "$APP_DIR"
 MONGO_CONTAINER=$(docker compose ps -q mongodb)
 [ -z "$MONGO_CONTAINER" ] && log "❌ Container MongoDB nu a fost găsit." && exit 1
 
-log "🛑 Opresc serviciile dependente de DB..."
+log "🛑 Opresc serviciile dependente de DB pentru a asigura consistența datelor..."
 docker compose stop backend frontend
 
 log "📦 Fac backup la baza de date MongoDB..."
@@ -1100,12 +1405,15 @@ exit 0
 EOF
     chmod +x /usr/local/bin/docker-backup
 
-    # Script de Restore
+    # Script pentru restaurarea unui backup
     cat > /usr/local/bin/docker-restore << 'EOF'
 #!/bin/bash
 set -eo pipefail
-# Script pentru restaurarea unui backup Docker Manager
-
+#
+# docker-restore: Restaurează aplicația dintr-un fișier de backup.
+# ATENȚIE: Această operațiune este distructivă și va suprascrie datele curente.
+# Utilizare: docker-restore /cale/catre/backup.tar.gz
+#
 # --- Configurare ---
 APP_DIR="/opt/docker-manager"
 DATA_DIR="/opt/docker-data"
@@ -1173,10 +1481,13 @@ exit 0
 EOF
     chmod +x /usr/local/bin/docker-restore
 
-    # Script de Monitor
+    # Script pentru monitorizarea live a containerelor Docker
     cat > /usr/local/bin/docker-monitor << 'EOF'
 #!/bin/bash
-# Wrapper pentru 'docker stats' pentru a afișa un monitor live.
+#
+# docker-monitor: Wrapper pentru 'docker stats' pentru a afișa un monitor live
+# al containerelor din proiectul Docker Manager.
+#
 APP_DIR="/opt/docker-manager"
 if [ ! -d "$APP_DIR" ]; then echo "❌ $APP_DIR nu există."; exit 1; fi
 cd "$APP_DIR"
@@ -1187,10 +1498,13 @@ docker stats $(docker ps --filter "label=com.docker.compose.project=${PROJECT_NA
 EOF
     chmod +x /usr/local/bin/docker-monitor
 
-    # Script de Notificare
+    # Script pentru a trimite notificări pe email
     cat > /usr/local/bin/notify-admin << 'EOF'
 #!/bin/bash
-# Trimite o notificare pe email-ul de admin.
+#
+# notify-admin: Trimite o notificare pe email-ul de admin.
+# Utilizare: notify-admin "Subiect" "Corp mesaj"
+#
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"; }
 if [ "$#" -ne 2 ]; then echo "Utilizare: $0 \"Subiect\" \"Corp mesaj\""; exit 1; fi
 SUBJECT="$1"
@@ -1212,20 +1526,30 @@ EOF
 }
 
 # ============= CRON & OPTIMIZARE ==================
+#
+# Configurează task-uri programate (cron jobs) pentru mentenanță automată.
+# Include backup-uri zilnice, monitorizare și curățare de log-uri.
+#
 setup_cron_jobs() {
     print_step "Configurarea task-urilor programate..."
+
+    # Cron job pentru backup zilnic
     cat > /etc/cron.d/docker-manager-backup << EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Backup zilnic la 2 AM
 0 2 * * * root /usr/local/bin/docker-backup >> /var/log/docker-backup.log 2>&1
 EOF
+
+    # Cron job pentru monitorizare (exemplu, poate fi dezactivat/modificat)
     cat > /etc/cron.d/system-monitor << EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-# Verificare sistem la fiecare 5 minute
+# Verificare sistem la fiecare 5 minute (pentru logging, poate fi zgomotos)
 */5 * * * * root /usr/local/bin/system-check --silent >> /var/log/system-monitor.log 2>&1
 EOF
+
+    # Cron job pentru curățarea log-urilor vechi
     cat > /etc/cron.d/log-cleanup << EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -1239,9 +1563,17 @@ EOF
 }
 
 # ========== OPTIMIZĂRI SISTEM ==================
+#
+# Aplică o serie de optimizări la nivel de kernel (sysctl) și limite de sistem
+# pentru a îmbunătăți performanța rețelei și a gestionării fișierelor,
+# esențiale pentru un server cu trafic ridicat.
+#
 optimize_system() {
     print_step "Optimizarea performanței sistemului..."
+
+    # Aplică setări sysctl pentru performanța rețelei și a sistemului
     cat > /etc/sysctl.d/99-docker-manager.conf << EOF
+# Optimizări TCP/IP
 net.core.rmem_max = 134217728
 net.core.wmem_max = 134217728
 net.ipv4.tcp_rmem = 4096 87380 134217728
@@ -1256,6 +1588,12 @@ net.ipv4.tcp_fin_timeout = 30
 net.ipv4.tcp_keepalive_time = 300
 net.ipv4.tcp_keepalive_intvl = 30
 net.ipv4.tcp_keepalive_probes = 3
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_max_tw_buckets = 2000000
+net.ipv4.tcp_timestamps = 1
+net.ipv4.tcp_slow_start_after_idle = 0
+
+# Optimizări sistem de fișiere și memorie virtuală
 fs.file-max = 2097152
 fs.inotify.max_user_watches = 524288
 fs.inotify.max_user_instances = 512
@@ -1263,21 +1601,23 @@ vm.swappiness = 10
 vm.dirty_ratio = 15
 vm.dirty_background_ratio = 5
 vm.overcommit_memory = 1
+
+# Întăriri de securitate
 net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
 net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.default.accept_source_route = 0
 net.ipv4.icmp_echo_ignore_broadcasts = 1
 net.ipv4.icmp_ignore_bogus_error_responses = 1
-net.ipv4.tcp_syncookies = 1
-net.ipv4.tcp_max_tw_buckets = 2000000
-net.ipv4.tcp_timestamps = 1
-net.ipv4.tcp_slow_start_after_idle = 0
+
+# Necesare pentru Docker
 net.ipv4.ip_forward = 1
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 EOF
     sysctl -p /etc/sysctl.d/99-docker-manager.conf >/dev/null 2>&1
+
+    # Mărește limitele pentru descriptori de fișiere (file descriptors)
     cat > /etc/security/limits.d/99-docker-manager.conf << EOF
 * soft nofile 1048576
 * hard nofile 1048576
@@ -1290,6 +1630,8 @@ $ADMIN_USER hard nofile 1048576
 $ADMIN_USER soft nproc 65536
 $ADMIN_USER hard nproc 65536
 EOF
+
+    # Configurează rotația și limitele pentru log-urile systemd
     mkdir -p /etc/systemd/journald.conf.d
     cat > /etc/systemd/journald.conf.d/99-docker-manager.conf << EOF
 [Journal]
@@ -1305,6 +1647,10 @@ EOF
     print_success "Optimizări de performanță aplicate"
 }
 # ====================== CLEANUP LA EROARE =========================
+#
+# Funcție de cleanup care este apelată în caz de eroare.
+# Afișează un mesaj de eroare și locația fișierului de log.
+#
 cleanup_on_error() {
     print_error "A apărut o eroare în timpul instalării!"
     print_info "Verifică logurile în: $LOG_FILE"
@@ -1315,6 +1661,10 @@ cleanup_on_error() {
 trap cleanup_on_error ERR
 
 # ================ RESTART SERVICII ȘI VERIFICARE FINALĂ ====================
+#
+# Repornește serviciile critice la finalul instalării și verifică
+# dacă toate sunt active și funcționale.
+#
 restart_all_services() {
     print_step "Restart servicii și verificare finală..."
     # Restart servicii în ordinea corectă
@@ -1341,6 +1691,11 @@ restart_all_services() {
 }
 
 # ================== GENERARE RAPORT FINAL DE INSTALARE =====================
+#
+# Generează un raport detaliat al instalării, salvat în /root.
+# Acest raport conține toate informațiile esențiale despre configurarea serverului
+# și pașii următori pentru utilizator.
+#
 generate_final_report() {
     print_step "Generarea raportului final de instalare..."
 
@@ -1506,6 +1861,7 @@ EOF
 ====================================
 EOF
 
+    # Creează un fișier separat cu credențiale, cu permisiuni restrictive
     cat > "/root/.docker-manager-credentials" << EOF
 # Docker Manager Credentials
 # PĂSTREAZĂ ACEST FIȘIER ÎN SIGURANȚĂ!
@@ -1528,6 +1884,10 @@ EOF
 }
 
 # ================== BANNER FINAL / INSTRUCȚIUNI CLI ====================
+#
+# Afișează un mesaj final în consolă cu un rezumat al informațiilor
+# critice și instrucțiuni clare pentru pașii următori.
+#
 show_completion_message() {
     clear
     echo -e "${GREEN}"
@@ -1581,7 +1941,7 @@ EOF
     echo -e "${BLUE}🛠️  Comenzi utile:${NC}"
     echo -e "• Verificare sistem: ${CYAN}system-check${NC}"
     echo -e "• Monitorizare live: ${CYAN}docker-monitor${NC}"
-    echo -e "• Backup manual: ${CYAN}docker-backup${NC}"
+    echo "• Backup manual: ${CYAN}docker-backup${NC}"
     echo ""
 
     echo -e "${GREEN}════════════════════════════════════════════════════════════════════${NC}"
@@ -1591,6 +1951,10 @@ EOF
 }
 
 # ======================= FUNCȚIA PRINCIPALĂ ========================
+#
+# Orchestrează întregul proces de instalare, apelând funcțiile
+# definite mai sus în ordinea corectă.
+#
 main() {
     # Inițializare
     print_header
@@ -1598,6 +1962,7 @@ main() {
     chmod 640 "$LOG_FILE"
     echo "=== Docker Manager VPS Setup v3.0 - Started at $(date) ===" > "$LOG_FILE"
 
+    # Etapele instalării
     check_root
     check_system
     collect_config
@@ -1620,7 +1985,8 @@ main() {
     create_management_scripts
     setup_cron_jobs
     optimize_system
-    # Dacă ai funcții de notificări poți adăuga aici
+
+    # Finalizare
     generate_final_report
     restart_all_services
 
@@ -1629,6 +1995,8 @@ main() {
 }
 
 # ===== PORNIRE SCRIPT DOAR DACĂ E EXECUTAT DIRECT (nu la import) =====
+# Asigură că funcția `main` este apelată doar când scriptul este executat,
+# nu și când este inclus (sourced) în alt script.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
