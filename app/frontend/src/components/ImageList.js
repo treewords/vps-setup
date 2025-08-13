@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, Chip, Typography, Box, IconButton, Tooltip
+  Button, Chip, IconButton, Tooltip
 } from '@mui/material';
 import { Delete, Refresh } from '@mui/icons-material';
 import * as api from '../services/api';
@@ -42,83 +41,57 @@ const ImageList = () => {
       refresh();
     } catch (error) {
       console.error("Error removing image", error);
-      // You might want to show a notification to the user here
     }
   };
 
   return (
-    <Box>
-       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: 'var(--dark)' }}>
-          Images
-        </Typography>
-        <Button variant="contained" onClick={refresh} disabled={loading.images} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
+    <div>
+       <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold text-gray-800">Images</h2>
+        <Button variant="contained" onClick={refresh} disabled={loading.images} startIcon={<Refresh />}>
             Refresh
-          </Button>
-      </Box>
-      <TableContainer>
-        <Table sx={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            '& th': {
-                textAlign: 'left',
-                p: '12px',
-                background: 'var(--light)',
-                color: 'var(--text-light)',
-                fontSize: '12px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                borderBottom: '2px solid var(--border)',
-            },
-            '& td': {
-                p: '12px',
-                borderBottom: '1px solid var(--border)',
-                fontSize: '14px',
-            },
-            '& tr:hover': {
-                background: 'rgba(37, 99, 235, 0.05)',
-            }
-        }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Tags</TableCell>
-              <TableCell>ID</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell>Size</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading.images ? (
-              <TableRow>
-                <TableCell colSpan={5} align="center">
-                    <Typography>Loading images...</Typography>
-                </TableCell>
-              </TableRow>
-            ) : images.map((image) => (
-              <TableRow key={image.Id}>
-                <TableCell>
-                  {image.RepoTags && image.RepoTags.length > 0 ?
-                    image.RepoTags.map(tag => <Chip key={tag} label={tag} size="small" sx={{ mr: 0.5, mb: 0.5 }} />) :
-                    <Chip label="<none>:<none>" size="small" variant="outlined" />}
-                </TableCell>
-                <TableCell><code>{image.Id.substring(7, 19)}</code></TableCell>
-                <TableCell>{formatDate(image.Created)}</TableCell>
-                <TableCell>{formatSize(image.Size)}</TableCell>
-                <TableCell align="right">
-                    <Tooltip title="Remove Image">
-                        <span>
-                            <IconButton onClick={() => handleRemoveClick(image)}>
-                                <Delete sx={{ color: 'var(--danger)'}} />
-                            </IconButton>
-                        </span>
-                    </Tooltip>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white">
+            <thead className="bg-gray-100">
+                <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+                {loading.images ? (
+                <tr>
+                    <td colSpan="5" className="text-center py-4">Loading images...</td>
+                </tr>
+                ) : images.map((image) => (
+                <tr key={image.Id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                    {image.RepoTags && image.RepoTags.length > 0 ?
+                        image.RepoTags.map(tag => <Chip key={tag} label={tag} size="small" className="mr-1 mb-1" />) :
+                        <Chip label="<none>:<none>" size="small" variant="outlined" />}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-gray-500">{image.Id.substring(7, 19)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatDate(image.Created)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatSize(image.Size)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <Tooltip title="Remove Image">
+                            <span>
+                                <IconButton onClick={() => handleRemoveClick(image)}>
+                                    <Delete className="text-red-500" />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    </td>
+                </tr>
+                ))}
+            </tbody>
+        </table>
+      </div>
       {selectedImage && (
           <ConfirmationDialog
             open={confirmDialogOpen}
@@ -133,7 +106,7 @@ const ImageList = () => {
             description={`Are you sure you want to remove this image? ${selectedImage.RepoTags ? selectedImage.RepoTags[0] : selectedImage.Id.substring(7,19)}`}
           />
       )}
-    </Box>
+    </div>
   );
 };
 

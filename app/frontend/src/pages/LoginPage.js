@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, Checkbox, FormControlLabel, Typography, Link } from '@mui/material';
+import { TextField, Button, Checkbox, FormControlLabel, Link, Typography } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
@@ -15,7 +15,6 @@ const LoginPage = () => {
     setError('');
     try {
       await login(username, password);
-      // Navigation is handled by the context
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
@@ -23,89 +22,73 @@ const LoginPage = () => {
     }
   };
 
-  // The styles are complex and will be simplified for this implementation
-  // We'll use MUI components and `sx` props to approximate the design
   return (
-    <Box sx={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    }}>
-      <Box
-        component="form"
-        onSubmit={handleLogin}
-        sx={{
-          width: '100%',
-          maxWidth: '400px',
-          p: '40px',
-          borderRadius: '20px',
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(10px)',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <Box sx={{ textAlign: 'center', mb: '30px' }}>
-            <Box sx={{
-                width: '80px',
-                height: '80px',
-                background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
-                borderRadius: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-                fontSize: '40px',
-                color: 'white',
-            }}>🐳</Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--dark)' }}>Docker Manager</Typography>
-            <Typography sx={{ color: 'var(--text-light)' }}>Secure Container Management</Typography>
-        </Box>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-600 to-blue-500">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl">
+        <div className="text-center">
+            <div className="mx-auto flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 shadow-lg text-white text-4xl">
+                🐳
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-800">
+                Docker Manager
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+                Secure Container Management
+            </p>
+        </div>
 
-        {error && <Typography color="error" sx={{ mb: 2, textAlign: 'center' }}>{error}</Typography>}
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+            {error && <p className="text-center text-red-500">{error}</p>}
 
-        <TextField
-          label="Username or Email"
-          variant="outlined"
-          fullWidth
-          required
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          sx={{ mb: '20px' }}
-        />
-        <TextField
-          label="Password"
-          type="password"
-          variant="outlined"
-          fullWidth
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          sx={{ mb: '20px' }}
-        />
+            <div className="rounded-md shadow-sm -space-y-px">
+                <div>
+                    <TextField
+                        id="username"
+                        label="Username or Email"
+                        variant="outlined"
+                        fullWidth
+                        required
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                    />
+                </div>
+                <div className="pt-4">
+                     <TextField
+                        id="password"
+                        label="Password"
+                        type="password"
+                        variant="outlined"
+                        fullWidth
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                </div>
+            </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '25px' }}>
-            <FormControlLabel control={<Checkbox />} label="Remember me" />
-            <Link href="#" underline="hover">Forgot password?</Link>
-        </Box>
+            <div className="flex items-center justify-between">
+                <FormControlLabel control={<Checkbox color="primary" />} label="Remember me" />
+                <div className="text-sm">
+                    <Link href="#" variant="body2">
+                        Forgot your password?
+                    </Link>
+                </div>
+            </div>
 
-        <Button
-          type="submit"
-          variant="contained"
-          fullWidth
-          disabled={loading}
-          sx={{
-            p: '12px',
-            borderRadius: '10px',
-            fontWeight: 600,
-            background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
-          }}
-        >
-          {loading ? 'Signing In...' : 'Sign In'}
-        </Button>
-      </Box>
-    </Box>
+            <div>
+                <Button
+                    type="submit"
+                    variant="contained"
+                    fullWidth
+                    disabled={loading}
+                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    {loading ? 'Signing In...' : 'Sign In'}
+                </Button>
+            </div>
+        </form>
+      </div>
+    </div>
   );
 };
 

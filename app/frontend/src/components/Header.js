@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Box, Typography, IconButton, useTheme } from '@mui/material';
+import { useTheme, IconButton } from '@mui/material';
 import { Logout, Brightness4, Brightness7 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext';
@@ -15,67 +15,40 @@ const formatUptime = (seconds) => {
     return `${days}d ${hrs}h ${mnts}m`;
 };
 
+const InfoItem = ({ label, value }) => (
+    <div className="text-center">
+        <span className="text-xs text-gray-500 uppercase">{label}</span>
+        <span className="block text-lg font-semibold text-gray-800">{value}</span>
+    </div>
+);
+
 const Header = ({ staticInfo }) => {
-  const navigate = useNavigate();
   const theme = useTheme();
   const colorMode = useContext(ThemeContext);
   const { logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
-  };
-
   return (
-    <Box sx={{
-      background: 'rgba(255, 255, 255, 0.95)',
-      backdropFilter: 'blur(10px)',
-      borderRadius: '16px',
-      p: '20px 30px',
-      mb: '30px',
-      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <Box sx={{
-          width: '48px',
-          height: '48px',
-          background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: '24px',
-        }}>
-          🐳
-        </Box>
-        <Typography variant="h4" component="h1" sx={{ color: 'var(--dark)', fontWeight: 600 }}>
-          Docker Manager
-        </Typography>
-      </Box>
-      <Box sx={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '12px', color: 'var(--text-light)', textTransform: 'uppercase' }}>Server</Typography>
-          <Typography sx={{ fontSize: '18px', fontWeight: 600, color: 'var(--dark)' }}>{staticInfo?.os || '...'}</Typography>
-        </Box>
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '12px', color: 'var(--text-light)', textTransform: 'uppercase' }}>Uptime</Typography>
-          <Typography sx={{ fontSize: '18px', fontWeight: 600, color: 'var(--dark)' }}>{formatUptime(staticInfo?.uptime)}</Typography>
-        </Box>
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '12px', color: 'var(--text-light)', textTransform: 'uppercase' }}>Docker</Typography>
-          <Typography sx={{ fontSize: '18px', fontWeight: 600, color: 'var(--dark)' }}>v{staticInfo?.dockerVersion || '...'}</Typography>
-        </Box>
-        <IconButton sx={{ ml: 1 }} onClick={colorMode.toggleColorMode} color="inherit" title="Toggle theme">
-            {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-        </IconButton>
-        <IconButton onClick={handleLogout} sx={{ color: 'var(--text-light)' }} title="Logout">
-            <Logout />
-        </IconButton>
-      </Box>
-    </Box>
+    <header className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-5 shadow-lg flex justify-between items-center mb-8">
+        <div className="flex items-center gap-4">
+            <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white text-2xl">
+                🐳
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800">
+                Docker Manager
+            </h1>
+        </div>
+        <div className="flex items-center gap-5">
+            <InfoItem label="Server" value={staticInfo?.os || '...'} />
+            <InfoItem label="Uptime" value={formatUptime(staticInfo?.uptime)} />
+            <InfoItem label="Docker" value={`v${staticInfo?.dockerVersion || '...'}`} />
+            <IconButton onClick={colorMode.toggleColorMode} color="inherit" title="Toggle theme">
+                {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+            </IconButton>
+            <IconButton onClick={logout} title="Logout">
+                <Logout />
+            </IconButton>
+        </div>
+    </header>
   );
 };
 
