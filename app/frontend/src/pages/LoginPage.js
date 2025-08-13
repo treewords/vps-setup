@@ -1,25 +1,24 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Box, TextField, Button, Checkbox, FormControlLabel, Typography, Link } from '@mui/material';
-import * as api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.login(username, password);
-      localStorage.setItem('dockerManagerToken', data.token);
-      navigate('/');
+      await login(username, password);
+      // Navigation is handled by the context
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
