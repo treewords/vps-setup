@@ -5,6 +5,7 @@ import {
 import { PlayArrow, Stop, RestartAlt, Refresh, Pause, Delete, Search, Description, Terminal, Add } from '@mui/icons-material';
 import * as api from '../services/api';
 import { useDocker } from '../context/DockerContext';
+import { useAuth } from '../context/AuthContext';
 import ContainerInspectDialog from './ContainerInspectDialog';
 import LogViewerDialog from './LogViewerDialog';
 import ConfirmationDialog from './ConfirmationDialog';
@@ -41,6 +42,7 @@ const calculateCPUPercent = (stats) => {
 const ContainerList = () => {
   // --- State ---
   const { containers, containerStats, loading, refresh } = useDocker();
+  const { user } = useAuth();
   const [filteredContainers, setFilteredContainers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectDialogOpen, setInspectDialogOpen] = useState(false);
@@ -116,9 +118,11 @@ const ContainerList = () => {
           <Button variant="contained" onClick={refresh} disabled={loading.containers} startIcon={<Refresh />}>
             Refresh
           </Button>
-          <Button variant="contained" color="success" onClick={() => setCreateDialogOpen(true)} startIcon={<Add />}>
-            New
-          </Button>
+          {['Admin', 'Developer'].includes(user?.role) && (
+            <Button variant="contained" color="success" onClick={() => setCreateDialogOpen(true)} startIcon={<Add />}>
+                New
+            </Button>
+          )}
         </div>
       </div>
       <CreateContainerDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} onCreated={refresh} />
@@ -164,56 +168,64 @@ const ContainerList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <ButtonGroup variant="text" size="small">
-                    <Tooltip title="Start">
-                      <span>
-                        <IconButton onClick={() => handleAction(api.startContainer, container.Id)} disabled={container.State === 'running' || container.State === 'paused'}>
-                          <PlayArrow className="text-green-500" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Stop">
-                      <span>
-                        <IconButton onClick={() => handleAction(api.stopContainer, container.Id)} disabled={container.State !== 'running'}>
-                          <Stop className="text-red-500" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                     <Tooltip title={container.State === 'paused' ? 'Unpause' : 'Pause'}>
-                      <span>
-                        <IconButton onClick={() => handleAction(container.State === 'paused' ? api.unpauseContainer : api.pauseContainer, container.Id)} disabled={container.State !== 'running' && container.State !== 'paused'}>
-                          <Pause className="text-yellow-500" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Restart">
-                      <span>
-                        <IconButton onClick={() => handleAction(api.restartContainer, container.Id)} disabled={container.State !== 'running'}>
-                          <RestartAlt className="text-blue-500" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                    {['Admin', 'Developer'].includes(user?.role) && (
+                        <>
+                            <Tooltip title="Start">
+                            <span>
+                                <IconButton onClick={() => handleAction(api.startContainer, container.Id)} disabled={container.State === 'running' || container.State === 'paused'}>
+                                <PlayArrow className="text-green-500" />
+                                </IconButton>
+                            </span>
+                            </Tooltip>
+                            <Tooltip title="Stop">
+                            <span>
+                                <IconButton onClick={() => handleAction(api.stopContainer, container.Id)} disabled={container.State !== 'running'}>
+                                <Stop className="text-red-500" />
+                                </IconButton>
+                            </span>
+                            </Tooltip>
+                            <Tooltip title={container.State === 'paused' ? 'Unpause' : 'Pause'}>
+                            <span>
+                                <IconButton onClick={() => handleAction(container.State === 'paused' ? api.unpauseContainer : api.pauseContainer, container.Id)} disabled={container.State !== 'running' && container.State !== 'paused'}>
+                                <Pause className="text-yellow-500" />
+                                </IconButton>
+                            </span>
+                            </Tooltip>
+                            <Tooltip title="Restart">
+                            <span>
+                                <IconButton onClick={() => handleAction(api.restartContainer, container.Id)} disabled={container.State !== 'running'}>
+                                <RestartAlt className="text-blue-500" />
+                                </IconButton>
+                            </span>
+                            </Tooltip>
+                        </>
+                    )}
                     <Tooltip title="Logs">
                         <IconButton onClick={() => openDialog(setLogsDialogOpen, container)}>
                             <Description className="text-gray-500" />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Terminal">
-                        <IconButton onClick={() => openDialog(setTerminalDialogOpen, container)} disabled={container.State !== 'running'}>
-                            <Terminal className="text-gray-500" />
-                        </IconButton>
-                    </Tooltip>
+                    {['Admin', 'Developer'].includes(user?.role) && (
+                        <Tooltip title="Terminal">
+                            <IconButton onClick={() => openDialog(setTerminalDialogOpen, container)} disabled={container.State !== 'running'}>
+                                <Terminal className="text-gray-500" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     <Tooltip title="Inspect">
                         <IconButton onClick={() => openDialog(setInspectDialogOpen, container)}>
                             <Search className="text-gray-500" />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Remove">
-                      <span>
-                        <IconButton onClick={() => handleRemoveClick(container)} disabled={container.State === 'running'}>
-                          <Delete className="text-red-500" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                    {user?.role === 'Admin' && (
+                        <Tooltip title="Remove">
+                        <span>
+                            <IconButton onClick={() => handleRemoveClick(container)} disabled={container.State === 'running'}>
+                            <Delete className="text-red-500" />
+                            </IconButton>
+                        </span>
+                        </Tooltip>
+                    )}
                   </ButtonGroup>
                 </td>
               </tr>

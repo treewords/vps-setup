@@ -1,18 +1,43 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: '/api', // Proxied by the dev server, and by Nginx in production
+  baseURL: '/api',
 });
 
 apiClient.interceptors.request.use((config) => {
-    const token = localStorage.getItem('dockerManagerToken');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    const accessToken = localStorage.getItem('dockerManagerAccessToken');
+    if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
 }, (error) => {
     return Promise.reject(error);
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = localStorage.getItem('dockerManagerRefreshToken');
+        const { data } = await apiClient.post('/auth/refresh', { token: refreshToken });
+        localStorage.setItem('dockerManagerAccessToken', data.accessToken);
+        apiClient.defaults.headers.common['Authorization'] = 'Bearer ' + data.accessToken;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        // Logout user if refresh token is invalid
+        localStorage.removeItem('dockerManagerAccessToken');
+        localStorage.removeItem('dockerManagerRefreshToken');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 export const login = (username, password) => {
     return apiClient.post('/auth/login', { username, password });
@@ -20,6 +45,14 @@ export const login = (username, password) => {
 
 export const register = (username, password) => {
     return apiClient.post('/auth/register', { username, password });
+};
+
+export const logout = (refreshToken) => {
+    return apiClient.post('/auth/logout', { token: refreshToken });
+}
+
+export const getSystemInfo = () => {
+  return apiClient.get('/system');
 };
 
 export const getContainers = () => {
@@ -58,8 +91,8 @@ export const removeContainer = (id, force = false) => {
   return apiClient.delete(`/containers/${id}?force=${force}`);
 };
 
-export const getSystemInfo = () => {
-  return apiClient.get('/system');
+export const createContainer = (config) => {
+    return apiClient.post('/containers/create', config);
 };
 
 export const getImages = () => {
@@ -68,8 +101,4 @@ export const getImages = () => {
 
 export const removeImage = (id, force = false) => {
     return apiClient.delete(`/images/${id}?force=${force}`);
-};
-
-export const createContainer = (config) => {
-    return apiClient.post('/containers/create', config);
 };
