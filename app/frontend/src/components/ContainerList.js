@@ -12,6 +12,13 @@ import TerminalDialog from './TerminalDialog';
 import CreateContainerDialog from './CreateContainerDialog';
 
 // --- Helper Functions ---
+const formatPorts = (ports) => {
+    if (!ports || ports.length === 0) {
+        return '-';
+    }
+    return ports.map(p => `${p.PublicPort}:${p.PrivatePort}/${p.Type}`).join(', ');
+};
+
 const formatMemory = (bytes) => {
   if (bytes === 0) return '0 B';
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
@@ -124,13 +131,14 @@ const ContainerList = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPU %</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Memory</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ports</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading.containers ? (
               <tr>
-                <td colSpan="6" className="text-center py-4">Loading containers...</td>
+                <td colSpan="7" className="text-center py-4">Loading containers...</td>
               </tr>
             ) : filteredContainers.map((container) => (
               <tr key={container.Id} className="hover:bg-gray-50">
@@ -150,6 +158,9 @@ const ContainerList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                   {containerStats[container.Id] ? formatMemory(containerStats[container.Id].memory_stats.usage) : '...'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                  {formatPorts(container.Ports)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <ButtonGroup variant="text" size="small">
