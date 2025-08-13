@@ -11,6 +11,7 @@ const wss = new WebSocketServer({ noServer: true });
 const terminalWss = new WebSocketServer({ noServer: true });
 
 const port = 3001;
+const si = require('systeminformation');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 app.use(express.json());
@@ -20,6 +21,27 @@ app.use(express.json());
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Get static system information
+app.get('/api/system', async (req, res) => {
+    try {
+        const [osInfo, cpu, dockerVersion, time] = await Promise.all([
+            si.osInfo(),
+            si.cpu(),
+            docker.version(),
+            si.time(),
+        ]);
+        res.json({
+            os: `${osInfo.distro} ${osInfo.release}`,
+            cpu: `${cpu.manufacturer} ${cpu.brand}`,
+            dockerVersion: dockerVersion.Version,
+            uptime: time.uptime,
+        });
+    } catch (error) {
+        console.error('Error fetching system info:', error);
+        res.status(500).json({ message: 'Error fetching system info', error: error.message });
+    }
 });
 
 // List all containers
@@ -179,6 +201,7 @@ wss.on('connection', (ws) => {
   console.log('Client connected');
   let logStream = null;
   let statsStreams = [];
+  let systemStatsInterval = null;
 
   const cleanup = () => {
     console.log('Cleaning up resources for disconnected client.');
@@ -191,6 +214,11 @@ wss.on('connection', (ws) => {
       statsStreams.forEach(s => s.destroy());
       statsStreams = [];
       console.log('All stats streams terminated.');
+    }
+    if (systemStatsInterval) {
+      clearInterval(systemStatsInterval);
+      systemStatsInterval = null;
+      console.log('System stats interval cleared.');
     }
   };
 
@@ -239,6 +267,39 @@ wss.on('connection', (ws) => {
             stream.on('end', () => console.log(`Stats stream ended for ${containerInfo.Id}`));
           });
         });
+      }
+
+      // Handle system stats streaming requests
+      if (data.type === 'get_system_stats') {
+          console.log('Requesting system stats.');
+          // Clear any existing interval
+          if (systemStatsInterval) clearInterval(systemStatsInterval);
+
+          systemStatsInterval = setInterval(async () => {
+              try {
+                  const [cpuLoad, mem, fs] = await Promise.all([
+                      si.currentLoad(),
+                      si.mem(),
+                      si.fsSize(),
+                  ]);
+                  ws.send(JSON.stringify({
+                      type: 'system_stats_data',
+                      stats: {
+                          cpu: cpuLoad.currentLoad,
+                          memory: {
+                              used: mem.used,
+                              total: mem.total,
+                          },
+                          disk: {
+                              used: fs[0].used,
+                              total: fs[0].size,
+                          },
+                      },
+                  }));
+              } catch (intervalError) {
+                  console.error('Error fetching system stats in interval:', intervalError);
+              }
+          }, 2000); // Send stats every 2 seconds
       }
 
     } catch (error) {

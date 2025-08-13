@@ -39,3 +39,7 @@ export const unpauseContainer = (id) => {
 export const removeContainer = (id, force = false) => {
   return apiClient.delete(`/containers/${id}?force=${force}`);
 };
+
+export const getSystemInfo = () => {
+  return apiClient.get('/system');
+};
