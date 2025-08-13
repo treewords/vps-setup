@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Dialog, DialogTitle, DialogContent, Box } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, Box, Typography, IconButton } from '@mui/material';
+import { Close } from '@mui/icons-material';
 import { Terminal } from 'xterm';
 import { AttachAddon } from 'xterm-addon-attach';
 import { FitAddon } from 'xterm-addon-fit';
@@ -57,10 +58,22 @@ const TerminalDialog = ({ open, onClose, containerId, containerName }) => {
   }, [open, containerId]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" PaperProps={{ sx: { height: '90vh' } }}>
-      <DialogTitle>Terminal for {containerName}</DialogTitle>
-      <DialogContent sx={{ p: 1, height: '100%' }}>
-        <Box ref={terminalRef} sx={{ height: '100%', width: '100%', backgroundColor: '#1e1e1e' }} />
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" PaperProps={{ sx: { height: '90vh', borderRadius: '12px', background: 'var(--darker)' } }}>
+      <DialogTitle sx={{
+          background: 'var(--dark)',
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          p: '15px 20px',
+        }}>
+        <Typography>📟 Terminal for {containerName}</Typography>
+         <IconButton onClick={onClose} sx={{ color: 'white' }}>
+            <Close />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 0, height: '100%', overflow: 'hidden' }}>
+        <Box ref={terminalRef} sx={{ height: '100%', width: '100%' }} />
       </DialogContent>
     </Dialog>
   );

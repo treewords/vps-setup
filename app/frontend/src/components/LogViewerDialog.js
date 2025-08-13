@@ -82,23 +82,34 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
   }, [logs]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
-      <DialogTitle>
-        Logs for {containerName}
-        <Typography variant="caption" sx={{ ml: 2 }}>
+    <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="lg"
+        PaperProps={{ sx: { height: '90vh', borderRadius: '12px', background: 'var(--darker)' } }}
+    >
+      <DialogTitle sx={{
+          background: 'var(--dark)',
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          p: '15px 20px',
+        }}>
+        <Typography>📋 Logs for {containerName}</Typography>
+        <Typography variant="caption">
           WebSocket: {wsStatus}
         </Typography>
       </DialogTitle>
-      <DialogContent>
-        <Paper variant="outlined" sx={{ backgroundColor: '#1e1e1e', color: '#d4d4d4', p: 2, height: '60vh', overflowY: 'auto', fontFamily: 'monospace' }}>
+      <DialogContent sx={{ p: '20px', flex: 1, overflowY: 'auto', fontFamily: 'monospace', color: '#d4d4d4', background: 'var(--darker)' }}>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
             {logs}
           </pre>
           <div ref={logsEndRef} />
-        </Paper>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+      <DialogActions sx={{ background: 'var(--dark)', p: '10px 20px' }}>
+        <Button onClick={onClose} sx={{ color: 'white' }}>Close</Button>
       </DialogActions>
     </Dialog>
   );
