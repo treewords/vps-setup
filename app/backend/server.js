@@ -326,7 +326,7 @@ terminalWss.on('connection', async (ws, req) => {
     try {
         const container = docker.getContainer(containerId);
         const exec = await container.exec({
-            Cmd: ['/bin/sh', '-c', 'TERM=xterm-256color; export TERM; /bin/sh'],
+            Cmd: ['/bin/sh'],
             AttachStdin: true,
             AttachStdout: true,
             AttachStderr: true,
