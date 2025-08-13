@@ -6,6 +6,7 @@ import { Delete, Refresh } from '@mui/icons-material';
 import * as api from '../services/api';
 import ConfirmationDialog from './ConfirmationDialog';
 import { useDocker } from '../context/DockerContext';
+import { useAuth } from '../context/AuthContext';
 
 const formatSize = (bytes) => {
     if (bytes === 0) return '0 B';
@@ -19,6 +20,7 @@ const formatDate = (timestamp) => {
 
 const ImageList = () => {
   const { images, loading, refresh } = useDocker();
+  const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -79,13 +81,15 @@ const ImageList = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatDate(image.Created)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatSize(image.Size)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <Tooltip title="Remove Image">
-                            <span>
-                                <IconButton onClick={() => handleRemoveClick(image)}>
-                                    <Delete className="text-red-500" />
-                                </IconButton>
-                            </span>
-                        </Tooltip>
+                        {user?.role === 'Admin' && (
+                            <Tooltip title="Remove Image">
+                                <span>
+                                    <IconButton onClick={() => handleRemoveClick(image)}>
+                                        <Delete className="text-red-500" />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
+                        )}
                     </td>
                 </tr>
                 ))}

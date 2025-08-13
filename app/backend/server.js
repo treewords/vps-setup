@@ -30,8 +30,9 @@ mongoose.connect(process.env.MONGODB_URI)
                     await User.create({
                         username: process.env.DEFAULT_ADMIN_USER,
                         password: process.env.DEFAULT_ADMIN_PASSWORD,
+                        role: 'Admin',
                     });
-                    console.log('Default admin user created.');
+                    console.log('Default admin user created with Admin role.');
                 }
             } catch (error) {
                 console.error('Error seeding admin user:', error);
@@ -47,7 +48,7 @@ app.use(express.json());
 // --- Routes ---
 app.use('/api/auth', require('./routes/authRoutes'));
 
-const { protect } = require('./middleware/authMiddleware');
+const { protect, authorize } = require('./middleware/authMiddleware');
 
 // --- REST API Endpoints ---
 
@@ -57,7 +58,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Get static system information
-app.get('/api/system', protect, async (req, res) => {
+app.get('/api/system', protect, authorize('Admin', 'Developer', 'Viewer'), async (req, res) => {
     try {
         const [osInfo, cpu, dockerVersion, time] = await Promise.all([
             si.osInfo(),
@@ -78,7 +79,7 @@ app.get('/api/system', protect, async (req, res) => {
 });
 
 // Create and start a new container
-app.post('/api/containers/create', protect, async (req, res) => {
+app.post('/api/containers/create', protect, authorize('Admin', 'Developer'), async (req, res) => {
     try {
         const container = await docker.createContainer(req.body);
         await container.start();
@@ -97,7 +98,7 @@ app.post('/api/containers/create', protect, async (req, res) => {
 });
 
 // Get all images
-app.get('/api/images', protect, async (req, res) => {
+app.get('/api/images', protect, authorize('Admin', 'Developer', 'Viewer'), async (req, res) => {
     try {
         const images = await docker.listImages({});
         res.json(images);
@@ -108,7 +109,7 @@ app.get('/api/images', protect, async (req, res) => {
 });
 
 // Remove an image
-app.delete('/api/images/:id', protect, async (req, res) => {
+app.delete('/api/images/:id', protect, authorize('Admin'), async (req, res) => {
     try {
         const image = docker.getImage(req.params.id);
         await image.remove({ force: req.query.force === 'true' });
@@ -126,7 +127,7 @@ app.delete('/api/images/:id', protect, async (req, res) => {
 });
 
 // List all containers
-app.get('/api/containers', protect, async (req, res) => {
+app.get('/api/containers', protect, authorize('Admin', 'Developer', 'Viewer'), async (req, res) => {
   try {
     const containers = await docker.listContainers({ all: true });
     res.json(containers);
@@ -137,7 +138,7 @@ app.get('/api/containers', protect, async (req, res) => {
 });
 
 // Inspect a container
-app.get('/api/containers/:id', protect, async (req, res) => {
+app.get('/api/containers/:id', protect, authorize('Admin', 'Developer', 'Viewer'), async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     const data = await container.inspect();
@@ -153,7 +154,7 @@ app.get('/api/containers/:id', protect, async (req, res) => {
 });
 
 // Get container logs (last 100 lines)
-app.get('/api/containers/:id/logs', protect, async (req, res) => {
+app.get('/api/containers/:id/logs', protect, authorize('Admin', 'Developer', 'Viewer'), async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         const logStream = await container.logs({
@@ -175,7 +176,7 @@ app.get('/api/containers/:id/logs', protect, async (req, res) => {
 
 
 // Start a container
-app.post('/api/containers/:id/start', protect, async (req, res) => {
+app.post('/api/containers/:id/start', protect, authorize('Admin', 'Developer'), async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     await container.start();
@@ -193,7 +194,7 @@ app.post('/api/containers/:id/start', protect, async (req, res) => {
 });
 
 // Stop a container
-app.post('/api/containers/:id/stop', protect, async (req, res) => {
+app.post('/api/containers/:id/stop', protect, authorize('Admin', 'Developer'), async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     await container.stop();
@@ -211,7 +212,7 @@ app.post('/api/containers/:id/stop', protect, async (req, res) => {
 });
 
 // Restart a container
-app.post('/api/containers/:id/restart', protect, async (req, res) => {
+app.post('/api/containers/:id/restart', protect, authorize('Admin', 'Developer'), async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     await container.restart();
@@ -227,7 +228,7 @@ app.post('/api/containers/:id/restart', protect, async (req, res) => {
 });
 
 // Pause a container
-app.post('/api/containers/:id/pause', protect, async (req, res) => {
+app.post('/api/containers/:id/pause', protect, authorize('Admin', 'Developer'), async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         await container.pause();
@@ -243,7 +244,7 @@ app.post('/api/containers/:id/pause', protect, async (req, res) => {
 });
 
 // Unpause a container
-app.post('/api/containers/:id/unpause', protect, async (req, res) => {
+app.post('/api/containers/:id/unpause', protect, authorize('Admin', 'Developer'), async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         await container.unpause();
@@ -259,7 +260,7 @@ app.post('/api/containers/:id/unpause', protect, async (req, res) => {
 });
 
 // Remove a container
-app.delete('/api/containers/:id', protect, async (req, res) => {
+app.delete('/api/containers/:id', protect, authorize('Admin'), async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         await container.remove({ force: req.query.force === 'true' });

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import jwt_decode from 'jwt-decode';
 import * as api from '../services/api';
 
 const AuthContext = createContext(null);
@@ -8,39 +9,62 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('dockerManagerToken'));
+  const [accessToken, setAccessToken] = useState(localStorage.getItem('dockerManagerAccessToken'));
+  const [refreshToken, setRefreshToken] = useState(localStorage.getItem('dockerManagerRefreshToken'));
   const navigate = useNavigate();
 
   useEffect(() => {
-    // This effect could be enhanced to verify the token with the backend
-    if (token) {
-      // For now, we'll assume the token is valid if it exists.
-      // A robust implementation would decode the token to get user info or have a /me endpoint
-      setUser({ token }); // Simplified user object
+    try {
+      const storedToken = localStorage.getItem('dockerManagerAccessToken');
+      if (storedToken) {
+        const decoded = jwt_decode(storedToken);
+        // Check if token is expired
+        if (decoded.exp * 1000 < Date.now()) {
+          // Here you would ideally use the refresh token or force logout
+          logout();
+        } else {
+          setUser({ id: decoded.id, role: decoded.role });
+          setAccessToken(storedToken);
+        }
+      }
+    } catch (error) {
+      // If token is invalid, logout
+      logout();
     }
-  }, [token]);
+  }, []);
 
   const login = async (username, password) => {
     const { data } = await api.login(username, password);
-    localStorage.setItem('dockerManagerToken', data.token);
-    setToken(data.token);
-    setUser({ token: data.token }); // Simplified
+    localStorage.setItem('dockerManagerAccessToken', data.accessToken);
+    localStorage.setItem('dockerManagerRefreshToken', data.refreshToken);
+    const decoded = jwt_decode(data.accessToken);
+    setUser({ id: decoded.id, role: decoded.role });
+    setAccessToken(data.accessToken);
+    setRefreshToken(data.refreshToken);
     navigate('/');
   };
 
-  const logout = () => {
-    localStorage.removeItem('dockerManagerToken');
-    setToken(null);
-    setUser(null);
-    navigate('/login');
+  const logout = async () => {
+    try {
+        await api.logout(refreshToken);
+    } catch (error) {
+        console.error("Logout failed, but clearing session anyway.", error);
+    } finally {
+        localStorage.removeItem('dockerManagerAccessToken');
+        localStorage.removeItem('dockerManagerRefreshToken');
+        setAccessToken(null);
+        setRefreshToken(null);
+        setUser(null);
+        navigate('/login');
+    }
   };
 
   const value = {
     user,
-    token,
+    accessToken,
     login,
     logout,
-    isAuthenticated: !!token,
+    isAuthenticated: !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
