@@ -25,8 +25,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./app/backend:/app
       - /app/node_modules # This is to avoid the local node_modules overwriting the container's
-    env_file:
-      - ./.env
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT}
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - DEFAULT_ADMIN_USER=${DEFAULT_ADMIN_USER}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
     networks:
       - docker_manager_network
     depends_on:
