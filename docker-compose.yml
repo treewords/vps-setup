@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:7.0
@@ -8,57 +6,91 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
     volumes:
-      - mongodb_data:/data/db
+      - /opt/docker-data/mongodb:/data/db
+      - /opt/docker-data/mongodb-config:/data/configdb
     networks:
       - docker_manager_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: docker_manager_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - /opt/docker-data/redis:/data
+    networks:
+      - docker_manager_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   backend:
-    build:
-      context: ./app/backend
-      dockerfile: Dockerfile
+    image: docker-manager-backend:latest # Se aÈ™teaptÄƒ ca aceastÄƒ imagine sÄƒ fie construitÄƒ manual
     container_name: docker_manager_backend
     restart: unless-stopped
     ports:
       - "3001:3001"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./app/backend:/app
-      - /app/node_modules # This is to avoid the local node_modules overwriting the container's
     environment:
-      - NODE_ENV=${NODE_ENV}
-      - PORT=${PORT}
+      - NODE_ENV=production
+      - PORT=3001
       - MONGODB_URI=${MONGODB_URI}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
       - DEFAULT_ADMIN_USER=${DEFAULT_ADMIN_USER}
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
+      - USER_ROLE=${USER_ROLE}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Acces la Docker socket
+      - /opt/docker-manager/logs:/app/logs
+      - /opt/docker-manager/uploads:/app/uploads
     networks:
       - docker_manager_network
     depends_on:
       - mongodb
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
-    build:
-      context: ./app/frontend
-      dockerfile: Dockerfile
-      target: build
+    image: docker-manager-frontend:latest # Se aÈ™teaptÄƒ ca aceastÄƒ imagine sÄƒ fie construitÄƒ manual
     container_name: docker_manager_frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
-    volumes:
-      - ./app/frontend:/app
-      - /app/node_modules
-    command: ["npm", "start"]
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      - REACT_APP_WS_URL=${REACT_APP_WS_URL}
     networks:
       - docker_manager_network
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   docker_manager_network:
     driver: bridge
-
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 volumes:
   mongodb_data:
