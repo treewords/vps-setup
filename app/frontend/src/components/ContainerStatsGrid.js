@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Grid, Paper, Typography, Box } from '@mui/material';
-import * as api from '../services/api';
+import { useDocker } from '../context/DockerContext';
 
 const StatCard = ({ title, value, icon, colorClass }) => (
     <Paper sx={{
@@ -42,26 +42,17 @@ const StatCard = ({ title, value, icon, colorClass }) => (
 );
 
 const ContainerStatsGrid = () => {
+  const { containers } = useDocker();
   const [stats, setStats] = useState({ total: 0, running: 0, paused: 0, stopped: 0 });
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await api.getContainers();
-        const containers = response.data;
-        const running = containers.filter(c => c.State === 'running').length;
-        const paused = containers.filter(c => c.State === 'paused').length;
-        const stopped = containers.filter(c => c.State === 'exited').length;
-        setStats({ total: containers.length, running, paused, stopped });
-      } catch (error) {
-        console.error("Error fetching container stats", error);
-      }
-    };
-    fetchStats();
-    // Refresh stats every 10 seconds
-    const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    if (containers) {
+      const running = containers.filter(c => c.State === 'running').length;
+      const paused = containers.filter(c => c.State === 'paused').length;
+      const stopped = containers.filter(c => c.State === 'exited').length;
+      setStats({ total: containers.length, running, paused, stopped });
+    }
+  }, [containers]);
 
   return (
     <Box sx={{ mb: '30px' }}>

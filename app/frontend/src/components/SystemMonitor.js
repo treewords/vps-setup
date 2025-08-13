@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Grid, Paper, Typography, Box, LinearProgress } from '@mui/material';
+import React from 'react';
+import { Grid, Paper, Typography, Box } from '@mui/material';
+import { useDocker } from '../context/DockerContext';
 
 const ResourceCard = ({ title, value, progress, icon }) => {
 
@@ -36,38 +37,11 @@ const ResourceCard = ({ title, value, progress, icon }) => {
 
 
 const SystemMonitor = () => {
-  const [liveStats, setLiveStats] = useState(null);
-  const ws = useRef(null);
+  const { systemStats } = useDocker();
 
-  useEffect(() => {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsHost = isProduction ? window.location.host : 'localhost:3001';
-    const wsUrl = `${wsProtocol}://${wsHost}/ws`;
-
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onopen = () => {
-      ws.current.send(JSON.stringify({ type: 'get_system_stats' }));
-    };
-
-    ws.current.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === 'system_stats_data') {
-        setLiveStats(message.stats);
-      }
-    };
-
-    return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
-    };
-  }, []);
-
-  const cpuUsage = liveStats?.cpu || 0;
-  const memUsage = liveStats ? (liveStats.memory.used / liveStats.memory.total) * 100 : 0;
-  const diskUsage = liveStats ? (liveStats.disk.used / liveStats.disk.total) * 100 : 0;
+  const cpuUsage = systemStats?.cpu || 0;
+  const memUsage = systemStats ? (systemStats.memory.used / systemStats.memory.total) * 100 : 0;
+  const diskUsage = systemStats ? (systemStats.disk.used / systemStats.disk.total) * 100 : 0;
 
   return (
     <Box sx={{ mt: '30px' }}>

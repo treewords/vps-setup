@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Button, Chip, Typography, Box, IconButton, Tooltip
@@ -6,6 +6,7 @@ import {
 import { Delete, Refresh } from '@mui/icons-material';
 import * as api from '../services/api';
 import ConfirmationDialog from './ConfirmationDialog';
+import { useDocker } from '../context/DockerContext';
 
 const formatSize = (bytes) => {
     if (bytes === 0) return '0 B';
@@ -18,27 +19,10 @@ const formatDate = (timestamp) => {
 };
 
 const ImageList = () => {
-  const [images, setImages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { images, loading, refresh } = useDocker();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
-
-  const fetchImages = async () => {
-    setLoading(true);
-    try {
-      const response = await api.getImages();
-      setImages(response.data);
-    } catch (error) {
-      console.error("Error fetching images", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchImages();
-  }, []);
 
   const handleRemoveClick = (image) => {
     setSelectedImage(image);
@@ -68,7 +52,7 @@ const ImageList = () => {
         <Typography variant="h5" sx={{ fontWeight: 600, color: 'var(--dark)' }}>
           Images
         </Typography>
-        <Button variant="contained" onClick={fetchImages} disabled={loading} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
+        <Button variant="contained" onClick={refresh} disabled={loading.images} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
             Refresh
           </Button>
       </Box>

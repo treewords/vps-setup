@@ -1,7 +1,9 @@
-import React from 'react';
-import { Box, Typography, Button, IconButton } from '@mui/material';
-import { Logout } from '@mui/icons-material';
+import React, { useContext } from 'react';
+import { Box, Typography, IconButton, useTheme } from '@mui/material';
+import { Logout, Brightness4, Brightness7 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { ThemeContext } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const formatUptime = (seconds) => {
     if (!seconds) return '--';
@@ -15,10 +17,12 @@ const formatUptime = (seconds) => {
 
 const Header = ({ staticInfo }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const colorMode = useContext(ThemeContext);
+  const { logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('dockerManagerToken');
-    navigate('/login');
+    logout();
   };
 
   return (
@@ -64,6 +68,9 @@ const Header = ({ staticInfo }) => {
           <Typography sx={{ fontSize: '12px', color: 'var(--text-light)', textTransform: 'uppercase' }}>Docker</Typography>
           <Typography sx={{ fontSize: '18px', fontWeight: 600, color: 'var(--dark)' }}>v{staticInfo?.dockerVersion || '...'}</Typography>
         </Box>
+        <IconButton sx={{ ml: 1 }} onClick={colorMode.toggleColorMode} color="inherit" title="Toggle theme">
+            {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+        </IconButton>
         <IconButton onClick={handleLogout} sx={{ color: 'var(--text-light)' }} title="Logout">
             <Logout />
         </IconButton>

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Button, ButtonGroup, Chip, Typography, Box, IconButton, Tooltip, TextField
 } from '@mui/material';
 import { PlayArrow, Stop, RestartAlt, Refresh, Pause, Delete, Search, Description, Terminal, Add } from '@mui/icons-material';
 import * as api from '../services/api';
+import { useDocker } from '../context/DockerContext';
 import ContainerInspectDialog from './ContainerInspectDialog';
 import LogViewerDialog from './LogViewerDialog';
 import ConfirmationDialog from './ConfirmationDialog';
@@ -19,6 +20,7 @@ const formatMemory = (bytes) => {
 };
 
 const calculateCPUPercent = (stats) => {
+  if (!stats.precpu_stats || !stats.cpu_stats) return '0.00';
   const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
   const systemCpuDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
   const numberCpus = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage.length;
@@ -32,10 +34,8 @@ const calculateCPUPercent = (stats) => {
 
 const ContainerList = () => {
   // --- State ---
-  const [allContainers, setAllContainers] = useState([]);
+  const { containers, containerStats, loading, refresh } = useDocker();
   const [filteredContainers, setFilteredContainers] = useState([]);
-  const [containerStats, setContainerStats] = useState({});
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectDialogOpen, setInspectDialogOpen] = useState(false);
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
@@ -44,65 +44,24 @@ const ContainerList = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
-  const ws = useRef(null);
 
-  // --- Data Fetching and WebSocket ---
-  const fetchContainers = async () => {
-    setLoading(true);
-    try {
-      const response = await api.getContainers();
-      setAllContainers(response.data);
-      setFilteredContainers(response.data);
-    } catch (error) {
-      console.error("Error fetching containers", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // --- Search and Filter Logic ---
   useEffect(() => {
-    fetchContainers(); // Initial fetch
-
-    // WebSocket for stats
-    const isProduction = process.env.NODE_ENV === 'production';
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsHost = isProduction ? window.location.host : 'localhost:3001';
-    const wsUrl = `${wsProtocol}://${wsHost}/ws`;
-
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onopen = () => {
-      console.log('Stats WebSocket connected');
-      ws.current.send(JSON.stringify({ type: 'stats' }));
-    };
-
-    ws.current.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === 'stats_data') {
-        setContainerStats(prevStats => ({
-          ...prevStats,
-          [message.id]: message.stats,
-        }));
-      }
-    };
-
-    ws.current.onclose = () => {
-      console.log('Stats WebSocket disconnected');
-    };
-
-    // Cleanup on unmount
-    return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
-    };
-  }, []);
+    const lowercasedFilter = searchTerm.toLowerCase();
+    const filtered = containers.filter(container => {
+      return (
+        container.Names[0].substring(1).toLowerCase().includes(lowercasedFilter) ||
+        container.Image.toLowerCase().includes(lowercasedFilter)
+      );
+    });
+    setFilteredContainers(filtered);
+  }, [searchTerm, containers]);
 
   // --- Handlers ---
   const handleAction = async (action, containerId) => {
     try {
       await action(containerId);
-      fetchContainers(); // Refresh the list after an action
+      refresh(); // Refresh the list after an action
     } catch (error) {
       console.error(`Error performing action on container ${containerId}`, error);
     }
@@ -120,63 +79,19 @@ const ContainerList = () => {
     setConfirmAction(null);
   };
 
-  const handleInspectOpen = (container) => {
-    setSelectedContainer(container);
-    setInspectDialogOpen(true);
+  const openDialog = (setter, container) => {
+      setSelectedContainer(container);
+      setter(true);
   };
 
-  const handleInspectClose = () => {
-    setInspectDialogOpen(false);
-    setSelectedContainer(null);
+  const closeDialogs = () => {
+      setSelectedContainer(null);
+      setInspectDialogOpen(false);
+      setLogsDialogOpen(false);
+      setTerminalDialogOpen(false);
   };
-
-  const handleLogsOpen = (container) => {
-    setSelectedContainer(container);
-    setLogsDialogOpen(true);
-  };
-
-  const handleLogsClose = () => {
-    setLogsDialogOpen(false);
-    setSelectedContainer(null);
-  };
-
-  const handleTerminalOpen = (container) => {
-    setSelectedContainer(container);
-    setTerminalDialogOpen(true);
-  };
-
-  const handleTerminalClose = () => {
-    setTerminalDialogOpen(false);
-    setSelectedContainer(null);
-  };
-
-  // --- Search and Filter Logic ---
-  useEffect(() => {
-    const lowercasedFilter = searchTerm.toLowerCase();
-    const filtered = allContainers.filter(container => {
-      return (
-        container.Names[0].substring(1).toLowerCase().includes(lowercasedFilter) ||
-        container.Image.toLowerCase().includes(lowercasedFilter)
-      );
-    });
-    setFilteredContainers(filtered);
-  }, [searchTerm, allContainers]);
-
 
   // --- Render ---
-  const getStatusChip = (state) => {
-    switch (state) {
-      case 'running':
-        return <Chip label={state} color="success" size="small" />;
-      case 'exited':
-        return <Chip label={state} color="error" size="small" />;
-      case 'paused':
-        return <Chip label={state} color="warning" size="small" />;
-      default:
-        return <Chip label={state} color="default" size="small" />;
-    }
-  };
-
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -195,7 +110,7 @@ const ContainerList = () => {
                     sx: { borderRadius: '8px', background: 'white' }
                 }}
             />
-          <Button variant="contained" onClick={fetchContainers} disabled={loading} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
+          <Button variant="contained" onClick={refresh} disabled={loading.containers} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
             Refresh
           </Button>
           <Button variant="contained" onClick={() => setCreateDialogOpen(true)} startIcon={<Add />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--success)', '&:hover': { background: '#059669' } }}>
@@ -203,7 +118,7 @@ const ContainerList = () => {
           </Button>
         </Box>
       </Box>
-      <CreateContainerDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} onCreated={fetchContainers} />
+      <CreateContainerDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} onCreated={refresh} />
       <TableContainer>
         <Table sx={{
             width: '100%',
@@ -238,7 +153,7 @@ const ContainerList = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
+            {loading.containers ? (
               <TableRow>
                 <TableCell colSpan={6} align="center">
                     <Typography>Loading containers...</Typography>
@@ -302,17 +217,17 @@ const ContainerList = () => {
                       </span>
                     </Tooltip>
                     <Tooltip title="Logs">
-                        <IconButton onClick={() => handleLogsOpen(container)}>
+                        <IconButton onClick={() => openDialog(setLogsDialogOpen, container)}>
                             <Description sx={{ color: 'var(--text-light)' }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Terminal">
-                        <IconButton onClick={() => handleTerminalOpen(container)} disabled={container.State !== 'running'}>
+                        <IconButton onClick={() => openDialog(setTerminalDialogOpen, container)} disabled={container.State !== 'running'}>
                             <Terminal sx={{ color: 'var(--text-light)' }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Inspect">
-                        <IconButton onClick={() => handleInspectOpen(container)}>
+                        <IconButton onClick={() => openDialog(setInspectDialogOpen, container)}>
                             <Search sx={{ color: 'var(--text-light)' }} />
                         </IconButton>
                     </Tooltip>
@@ -334,18 +249,18 @@ const ContainerList = () => {
         <>
           <ContainerInspectDialog
             open={inspectDialogOpen}
-            onClose={handleInspectClose}
+            onClose={closeDialogs}
             containerId={selectedContainer.Id}
           />
           <LogViewerDialog
             open={logsDialogOpen}
-            onClose={handleLogsClose}
+            onClose={closeDialogs}
             containerId={selectedContainer.Id}
             containerName={selectedContainer.Names[0].substring(1)}
           />
           <TerminalDialog
             open={terminalDialogOpen}
-            onClose={handleTerminalClose}
+            onClose={closeDialogs}
             containerId={selectedContainer.Id}
             containerName={selectedContainer.Names[0].substring(1)}
           />
