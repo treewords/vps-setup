@@ -51,3 +51,7 @@ export const getImages = () => {
 export const removeImage = (id, force = false) => {
     return apiClient.delete(`/images/${id}?force=${force}`);
 };
+
+export const createContainer = (config) => {
+    return apiClient.post('/containers/create', config);
+};

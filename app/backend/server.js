@@ -44,6 +44,25 @@ app.get('/api/system', async (req, res) => {
     }
 });
 
+// Create and start a new container
+app.post('/api/containers/create', async (req, res) => {
+    try {
+        const container = await docker.createContainer(req.body);
+        await container.start();
+        res.status(201).json({ message: 'Container created and started successfully', id: container.id });
+    } catch (error) {
+        console.error('Error creating container:', error);
+        if (error.statusCode === 404) {
+            res.status(404).json({ message: `Image not found: ${req.body.Image}` });
+        } else if (error.statusCode === 409) {
+            res.status(409).json({ message: `Container name "${req.body.name}" is already in use.` });
+        }
+        else {
+            res.status(500).json({ message: 'Error creating container', error: error.message });
+        }
+    }
+});
+
 // Get all images
 app.get('/api/images', async (req, res) => {
     try {
