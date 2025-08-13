@@ -89,7 +89,7 @@ const ImageList = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
+            {loading.images ? (
               <TableRow>
                 <TableCell colSpan={5} align="center">
                     <Typography>Loading images...</Typography>

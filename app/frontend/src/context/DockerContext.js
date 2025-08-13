@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useRef, useContext } from 'react';
+import React, { createContext, useState, useEffect, useRef, useContext, useCallback } from 'react';
 import * as api from '../services/api';
 
 const DockerContext = createContext(null);
@@ -14,30 +14,54 @@ export const DockerProvider = ({ children }) => {
   const [loading, setLoading] = useState({
     containers: true,
     images: true,
-    system: true,
+    systemInfo: true,
   });
   const ws = useRef(null);
 
-  const fetchAll = async () => {
+  const fetchContainers = useCallback(async () => {
+    setLoading(prev => ({ ...prev, containers: true }));
     try {
-      setLoading(prev => ({ ...prev, containers: true, images: true, system: true }));
-      const [containersRes, imagesRes, systemRes] = await Promise.all([
-        api.getContainers(),
-        api.getImages(),
-        api.getSystemInfo(),
-      ]);
-      setContainers(containersRes.data);
-      setImages(imagesRes.data);
-      setSystemInfo(systemRes.data);
+      const response = await api.getContainers();
+      setContainers(response.data);
     } catch (error) {
-      console.error("Error fetching initial data", error);
+      console.error("Error fetching containers", error);
     } finally {
-        setLoading(prev => ({ ...prev, containers: false, images: false, system: false }));
+      setLoading(prev => ({ ...prev, containers: false }));
     }
-  };
+  }, []);
+
+  const fetchImages = useCallback(async () => {
+    setLoading(prev => ({ ...prev, images: true }));
+    try {
+      const response = await api.getImages();
+      setImages(response.data);
+    } catch (error) {
+      console.error("Error fetching images", error);
+    } finally {
+      setLoading(prev => ({ ...prev, images: false }));
+    }
+  }, []);
+
+  const fetchSystemInfo = useCallback(async () => {
+    setLoading(prev => ({ ...prev, systemInfo: true }));
+    try {
+      const response = await api.getSystemInfo();
+      setSystemInfo(response.data);
+    } catch (error) {
+      console.error("Error fetching system info", error);
+    } finally {
+      setLoading(prev => ({ ...prev, systemInfo: false }));
+    }
+  }, []);
+
+  const refreshAll = useCallback(() => {
+    fetchContainers();
+    fetchImages();
+    fetchSystemInfo();
+  }, [fetchContainers, fetchImages, fetchSystemInfo]);
 
   useEffect(() => {
-    fetchAll(); // Initial fetch
+    refreshAll();
 
     // WebSocket for live stats
     const isProduction = process.env.NODE_ENV === 'production';
@@ -68,7 +92,6 @@ export const DockerProvider = ({ children }) => {
 
     ws.current.onclose = () => {
       console.log('Docker data WebSocket disconnected');
-      // Optional: implement reconnect logic
     };
 
     return () => {
@@ -76,7 +99,7 @@ export const DockerProvider = ({ children }) => {
         ws.current.close();
       }
     };
-  }, []);
+  }, [refreshAll]);
 
   const value = {
     containers,
@@ -85,7 +108,7 @@ export const DockerProvider = ({ children }) => {
     containerStats,
     systemStats,
     loading,
-    refresh: fetchAll,
+    refresh: refreshAll,
   };
 
   return (
