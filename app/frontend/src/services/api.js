@@ -43,3 +43,11 @@ export const removeContainer = (id, force = false) => {
 export const getSystemInfo = () => {
   return apiClient.get('/system');
 };
+
+export const getImages = () => {
+  return apiClient.get('/images');
+};
+
+export const removeImage = (id, force = false) => {
+    return apiClient.delete(`/images/${id}?force=${force}`);
+};

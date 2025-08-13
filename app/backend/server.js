@@ -44,6 +44,35 @@ app.get('/api/system', async (req, res) => {
     }
 });
 
+// Get all images
+app.get('/api/images', async (req, res) => {
+    try {
+        const images = await docker.listImages({});
+        res.json(images);
+    } catch (error) {
+        console.error('Error fetching images:', error);
+        res.status(500).json({ message: 'Error fetching images', error: error.message });
+    }
+});
+
+// Remove an image
+app.delete('/api/images/:id', async (req, res) => {
+    try {
+        const image = docker.getImage(req.params.id);
+        await image.remove({ force: req.query.force === 'true' });
+        res.status(200).json({ message: `Image ${req.params.id} removed successfully.` });
+    } catch (error) {
+        console.error(`Error removing image ${req.params.id}:`, error);
+        if (error.statusCode === 404) {
+            res.status(404).json({ message: `Image ${req.params.id} not found.` });
+        } else if (error.statusCode === 409) {
+            res.status(409).json({ message: 'This image is in use by one or more containers.' });
+        } else {
+            res.status(500).json({ message: 'Error removing image', error: error.message });
+        }
+    }
+});
+
 // List all containers
 app.get('/api/containers', async (req, res) => {
   try {
