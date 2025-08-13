@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, ButtonGroup, Chip, Typography, Box, IconButton, Tooltip, TextField
+  Button, ButtonGroup, IconButton, Tooltip, TextField
 } from '@mui/material';
 import { PlayArrow, Stop, RestartAlt, Refresh, Pause, Delete, Search, Description, Terminal, Add } from '@mui/icons-material';
 import * as api from '../services/api';
@@ -93,12 +92,10 @@ const ContainerList = () => {
 
   // --- Render ---
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: 'var(--dark)' }}>
-          Containers
-        </Typography>
-        <Box sx={{ display: 'flex', gap: '10px' }}>
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold text-gray-800">Containers</h2>
+        <div className="flex gap-2">
             <TextField
                 variant="outlined"
                 size="small"
@@ -106,145 +103,113 @@ const ContainerList = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
-                    startAdornment: <Search sx={{ color: 'var(--text-light)', mr: 1 }} />,
-                    sx: { borderRadius: '8px', background: 'white' }
+                    startAdornment: <Search className="text-gray-500 mr-2" />,
                 }}
             />
-          <Button variant="contained" onClick={refresh} disabled={loading.containers} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
+          <Button variant="contained" onClick={refresh} disabled={loading.containers} startIcon={<Refresh />}>
             Refresh
           </Button>
-          <Button variant="contained" onClick={() => setCreateDialogOpen(true)} startIcon={<Add />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--success)', '&:hover': { background: '#059669' } }}>
-            New Container
+          <Button variant="contained" color="success" onClick={() => setCreateDialogOpen(true)} startIcon={<Add />}>
+            New
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
       <CreateContainerDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} onCreated={refresh} />
-      <TableContainer>
-        <Table sx={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            '& th': {
-                textAlign: 'left',
-                p: '12px',
-                background: 'var(--light)',
-                color: 'var(--text-light)',
-                fontSize: '12px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                borderBottom: '2px solid var(--border)',
-            },
-            '& td': {
-                p: '12px',
-                borderBottom: '1px solid var(--border)',
-                fontSize: '14px',
-            },
-            '& tr:hover': {
-                background: 'rgba(37, 99, 235, 0.05)',
-            }
-        }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Image</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>CPU %</TableCell>
-              <TableCell>Memory</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPU %</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Memory</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
             {loading.containers ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                    <Typography>Loading containers...</Typography>
-                </TableCell>
-              </TableRow>
+              <tr>
+                <td colSpan="6" className="text-center py-4">Loading containers...</td>
+              </tr>
             ) : filteredContainers.map((container) => (
-              <TableRow key={container.Id}>
-                <TableCell sx={{ fontWeight: 600, color: 'var(--dark)' }}>{container.Names[0].substring(1)}</TableCell>
-                <TableCell>{container.Image}</TableCell>
-                <TableCell>
-                    <Box component="span" sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        p: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        ...(container.State === 'running' && { background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }),
-                        ...(container.State === 'exited' && { background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }),
-                        ...(container.State === 'paused' && { background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }),
-                    }}>
-                        <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', background: 'currentColor' }} />
+              <tr key={container.Id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{container.Names[0].substring(1)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-500">{container.Image}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        container.State === 'running' ? 'bg-green-100 text-green-800' :
+                        container.State === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                    }`}>
                         {container.State}
-                    </Box>
-                </TableCell>
-                <TableCell>
+                    </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                   {containerStats[container.Id] ? `${calculateCPUPercent(containerStats[container.Id])}%` : '...'}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                   {containerStats[container.Id] ? formatMemory(containerStats[container.Id].memory_stats.usage) : '...'}
-                </TableCell>
-                <TableCell align="right">
-                  <ButtonGroup variant="outlined" size="small" sx={{ '& .MuiButton-root': { border: 'none' }}}>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <ButtonGroup variant="text" size="small">
                     <Tooltip title="Start">
                       <span>
                         <IconButton onClick={() => handleAction(api.startContainer, container.Id)} disabled={container.State === 'running' || container.State === 'paused'}>
-                          <PlayArrow sx={{ color: 'var(--success)'}} />
+                          <PlayArrow className="text-green-500" />
                         </IconButton>
                       </span>
                     </Tooltip>
                     <Tooltip title="Stop">
                       <span>
                         <IconButton onClick={() => handleAction(api.stopContainer, container.Id)} disabled={container.State !== 'running'}>
-                          <Stop sx={{ color: 'var(--danger)'}} />
+                          <Stop className="text-red-500" />
                         </IconButton>
                       </span>
                     </Tooltip>
                      <Tooltip title={container.State === 'paused' ? 'Unpause' : 'Pause'}>
                       <span>
                         <IconButton onClick={() => handleAction(container.State === 'paused' ? api.unpauseContainer : api.pauseContainer, container.Id)} disabled={container.State !== 'running' && container.State !== 'paused'}>
-                          <Pause sx={{ color: 'var(--warning)'}} />
+                          <Pause className="text-yellow-500" />
                         </IconButton>
                       </span>
                     </Tooltip>
                     <Tooltip title="Restart">
                       <span>
                         <IconButton onClick={() => handleAction(api.restartContainer, container.Id)} disabled={container.State !== 'running'}>
-                          <RestartAlt sx={{ color: 'var(--primary)'}} />
+                          <RestartAlt className="text-blue-500" />
                         </IconButton>
                       </span>
                     </Tooltip>
                     <Tooltip title="Logs">
                         <IconButton onClick={() => openDialog(setLogsDialogOpen, container)}>
-                            <Description sx={{ color: 'var(--text-light)' }} />
+                            <Description className="text-gray-500" />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Terminal">
                         <IconButton onClick={() => openDialog(setTerminalDialogOpen, container)} disabled={container.State !== 'running'}>
-                            <Terminal sx={{ color: 'var(--text-light)' }} />
+                            <Terminal className="text-gray-500" />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Inspect">
                         <IconButton onClick={() => openDialog(setInspectDialogOpen, container)}>
-                            <Search sx={{ color: 'var(--text-light)' }} />
+                            <Search className="text-gray-500" />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Remove">
                       <span>
                         <IconButton onClick={() => handleRemoveClick(container)} disabled={container.State === 'running'}>
-                          <Delete sx={{ color: 'var(--danger)'}} />
+                          <Delete className="text-red-500" />
                         </IconButton>
                       </span>
                     </Tooltip>
                   </ButtonGroup>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+          </tbody>
+        </table>
+      </div>
       {selectedContainer && (
         <>
           <ContainerInspectDialog
@@ -278,7 +243,7 @@ const ContainerList = () => {
           />
         </>
       )}
-    </Box>
+    </div>
   );
 };
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  Box, Typography, Paper
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, IconButton
 } from '@mui/material';
+import { Close } from '@mui/icons-material';
 import * as api from '../services/api';
 
 const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
@@ -18,11 +18,9 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
   useEffect(() => {
     const fetchAndStreamLogs = async () => {
       if (open && containerId) {
-        // Reset state
         setLogs('');
         setWsStatus('Connecting...');
 
-        // 1. Fetch historical logs
         try {
           const response = await api.getContainerLogs(containerId);
           setLogs(prev => prev + response.data);
@@ -31,7 +29,6 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
           setLogs(prev => prev + `\n--- ERROR FETCHING HISTORICAL LOGS: ${error.message} ---\n`);
         }
 
-        // 2. Connect WebSocket for real-time logs
         const isProduction = process.env.NODE_ENV === 'production';
         const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const wsHost = isProduction ? window.location.host : 'localhost:3001';
@@ -41,7 +38,6 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
 
         ws.current.onopen = () => {
           setWsStatus('Connected');
-          // Send the container ID to the backend to start the log stream
           ws.current.send(JSON.stringify({ type: 'log', containerId }));
         };
 
@@ -68,7 +64,6 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
 
     fetchAndStreamLogs();
 
-    // Cleanup function
     return () => {
       if (ws.current) {
         ws.current.close();
@@ -87,30 +82,23 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
         onClose={onClose}
         fullWidth
         maxWidth="lg"
-        PaperProps={{ sx: { height: '90vh', borderRadius: '12px', background: 'var(--darker)' } }}
+        PaperProps={{ className: 'h-[90vh] rounded-xl bg-gray-800' }}
     >
-      <DialogTitle sx={{
-          background: 'var(--dark)',
-          color: 'white',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          p: '15px 20px',
-        }}>
+      <DialogTitle className="bg-gray-900 text-white flex justify-between items-center p-4">
         <Typography>📋 Logs for {containerName}</Typography>
         <Typography variant="caption">
           WebSocket: {wsStatus}
         </Typography>
+        <IconButton onClick={onClose} className="text-white">
+            <Close />
+        </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ p: '20px', flex: 1, overflowY: 'auto', fontFamily: 'monospace', color: '#d4d4d4', background: 'var(--darker)' }}>
-          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+      <DialogContent className="p-4 overflow-y-auto font-mono text-gray-300 bg-gray-800">
+          <pre className="m-0 whitespace-pre-wrap break-all">
             {logs}
           </pre>
           <div ref={logsEndRef} />
       </DialogContent>
-      <DialogActions sx={{ background: 'var(--dark)', p: '10px 20px' }}>
-        <Button onClick={onClose} sx={{ color: 'white' }}>Close</Button>
-      </DialogActions>
     </Dialog>
   );
 };

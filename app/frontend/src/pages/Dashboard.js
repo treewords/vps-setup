@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Box, Tabs, Tab } from '@mui/material';
 import Header from '../components/Header';
 import SystemMonitor from '../components/SystemMonitor';
 import ContainerStatsGrid from '../components/ContainerStatsGrid';
 import ContainerList from '../components/ContainerList';
 import ImageList from '../components/ImageList';
-import * as api from '../services/api';
 import { useDocker } from '../context/DockerContext';
 
 function TabPanel(props) {
@@ -19,9 +18,9 @@ function TabPanel(props) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ pt: 3 }}>
+        <div className="pt-6">
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -36,26 +35,28 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="container">
+    <div className="max-w-7xl mx-auto p-5">
         <Header staticInfo={systemInfo} />
+        <ContainerStatsGrid />
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', background: 'rgba(255, 255, 255, 0.95)', borderRadius: '16px 16px 0 0' }}>
-          <Tabs value={currentTab} onChange={handleTabChange} aria-label="basic tabs example">
-            <Tab label="Containers" />
-            <Tab label="Images" />
-          </Tabs>
-        </Box>
-
-        <div className="container-section">
-          <TabPanel value={currentTab} index={0}>
-              <ContainerStatsGrid />
-              <ContainerList />
-              <SystemMonitor />
-          </TabPanel>
-          <TabPanel value={currentTab} index={1}>
-              <ImageList />
-          </TabPanel>
+        <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-lg mt-8">
+            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tabs value={currentTab} onChange={handleTabChange} aria-label="dashboard tabs">
+                <Tab label="Containers" />
+                <Tab label="Images" />
+                </Tabs>
+            </Box>
+            <div className="p-6">
+                <TabPanel value={currentTab} index={0}>
+                    <ContainerList />
+                </TabPanel>
+                <TabPanel value={currentTab} index={1}>
+                    <ImageList />
+                </TabPanel>
+            </div>
         </div>
+
+        <SystemMonitor />
     </div>
   );
 };
