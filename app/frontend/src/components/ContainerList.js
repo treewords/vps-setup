@@ -3,12 +3,13 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   Button, ButtonGroup, Chip, Typography, Box, IconButton, Tooltip, TextField
 } from '@mui/material';
-import { PlayArrow, Stop, RestartAlt, Refresh, Pause, Delete, Search, Description, Terminal } from '@mui/icons-material';
+import { PlayArrow, Stop, RestartAlt, Refresh, Pause, Delete, Search, Description, Terminal, Add } from '@mui/icons-material';
 import * as api from '../services/api';
 import ContainerInspectDialog from './ContainerInspectDialog';
 import LogViewerDialog from './LogViewerDialog';
 import ConfirmationDialog from './ConfirmationDialog';
 import TerminalDialog from './TerminalDialog';
+import CreateContainerDialog from './CreateContainerDialog';
 
 // --- Helper Functions ---
 const formatMemory = (bytes) => {
@@ -40,6 +41,7 @@ const ContainerList = () => {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [terminalDialogOpen, setTerminalDialogOpen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const ws = useRef(null);
@@ -196,8 +198,12 @@ const ContainerList = () => {
           <Button variant="contained" onClick={fetchContainers} disabled={loading} startIcon={<Refresh />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--primary)', '&:hover': { background: 'var(--primary-dark)' } }}>
             Refresh
           </Button>
+          <Button variant="contained" onClick={() => setCreateDialogOpen(true)} startIcon={<Add />} sx={{ borderRadius: '8px', textTransform: 'none', background: 'var(--success)', '&:hover': { background: '#059669' } }}>
+            New Container
+          </Button>
         </Box>
       </Box>
+      <CreateContainerDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} onCreated={fetchContainers} />
       <TableContainer>
         <Table sx={{
             width: '100%',
