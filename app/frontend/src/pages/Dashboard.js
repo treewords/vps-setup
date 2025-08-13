@@ -6,6 +6,7 @@ import ContainerStatsGrid from '../components/ContainerStatsGrid';
 import ContainerList from '../components/ContainerList';
 import ImageList from '../components/ImageList';
 import * as api from '../services/api';
+import { useDocker } from '../context/DockerContext';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -25,8 +26,6 @@ function TabPanel(props) {
     </div>
   );
 }
-
-import { useDocker } from '../context/DockerContext';
 
 const Dashboard = () => {
   const { systemInfo } = useDocker();

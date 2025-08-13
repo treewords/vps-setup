@@ -39,7 +39,7 @@ const ImageList = () => {
   const handleRemoveImage = async (id) => {
     try {
       await api.removeImage(id);
-      fetchImages();
+      refresh();
     } catch (error) {
       console.error("Error removing image", error);
       // You might want to show a notification to the user here
