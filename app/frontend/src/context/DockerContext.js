@@ -8,16 +8,12 @@ export const useDocker = () => useContext(DockerContext);
 export const DockerProvider = ({ children }) => {
   const [containers, setContainers] = useState([]);
   const [images, setImages] = useState([]);
-  const [networks, setNetworks] = useState([]);
-  const [volumes, setVolumes] = useState([]);
   const [systemInfo, setSystemInfo] = useState(null);
   const [containerStats, setContainerStats] = useState({});
   const [systemStats, setSystemStats] = useState(null);
   const [loading, setLoading] = useState({
     containers: true,
     images: true,
-    networks: true,
-    volumes: true,
     systemInfo: true,
   });
   const ws = useRef(null);
@@ -46,30 +42,6 @@ export const DockerProvider = ({ children }) => {
     }
   }, []);
 
-  const fetchNetworks = useCallback(async () => {
-    setLoading(prev => ({ ...prev, networks: true }));
-    try {
-      const response = await api.getNetworks();
-      setNetworks(response.data);
-    } catch (error) {
-      console.error("Error fetching networks", error);
-    } finally {
-      setLoading(prev => ({ ...prev, networks: false }));
-    }
-  }, []);
-
-  const fetchVolumes = useCallback(async () => {
-    setLoading(prev => ({ ...prev, volumes: true }));
-    try {
-      const response = await api.getVolumes();
-      setVolumes(response.data.Volumes);
-    } catch (error) {
-      console.error("Error fetching volumes", error);
-    } finally {
-      setLoading(prev => ({ ...prev, volumes: false }));
-    }
-  }, []);
-
   const fetchSystemInfo = useCallback(async () => {
     setLoading(prev => ({ ...prev, systemInfo: true }));
     try {
@@ -85,10 +57,8 @@ export const DockerProvider = ({ children }) => {
   const refreshAll = useCallback(() => {
     fetchContainers();
     fetchImages();
-    fetchNetworks();
-    fetchVolumes();
     fetchSystemInfo();
-  }, [fetchContainers, fetchImages, fetchNetworks, fetchVolumes, fetchSystemInfo]);
+  }, [fetchContainers, fetchImages, fetchSystemInfo]);
 
   useEffect(() => {
     refreshAll();
@@ -134,8 +104,6 @@ export const DockerProvider = ({ children }) => {
   const value = {
     containers,
     images,
-    networks,
-    volumes,
     systemInfo,
     containerStats,
     systemStats,
