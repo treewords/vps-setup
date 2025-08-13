@@ -14,7 +14,6 @@ const port = 3001;
 const si = require('systeminformation');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const mongoose = require('mongoose');
-require('dotenv').config();
 
 const User = require('./models/User');
 
