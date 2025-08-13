@@ -4,6 +4,24 @@ const apiClient = axios.create({
   baseURL: '/api', // Proxied by the dev server, and by Nginx in production
 });
 
+apiClient.interceptors.request.use((config) => {
+    const token = localStorage.getItem('dockerManagerToken');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
+
+export const login = (username, password) => {
+    return apiClient.post('/auth/login', { username, password });
+};
+
+export const register = (username, password) => {
+    return apiClient.post('/auth/register', { username, password });
+};
+
 export const getContainers = () => {
   return apiClient.get('/containers');
 };

@@ -13,8 +13,21 @@ const terminalWss = new WebSocketServer({ noServer: true });
 const port = 3001;
 const si = require('systeminformation');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('MongoDB connected...'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
 
 app.use(express.json());
+
+// --- Routes ---
+app.use('/api/auth', require('./routes/authRoutes'));
+
+const { protect } = require('./middleware/authMiddleware');
 
 // --- REST API Endpoints ---
 
@@ -24,7 +37,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Get static system information
-app.get('/api/system', async (req, res) => {
+app.get('/api/system', protect, async (req, res) => {
     try {
         const [osInfo, cpu, dockerVersion, time] = await Promise.all([
             si.osInfo(),
@@ -45,7 +58,7 @@ app.get('/api/system', async (req, res) => {
 });
 
 // Create and start a new container
-app.post('/api/containers/create', async (req, res) => {
+app.post('/api/containers/create', protect, async (req, res) => {
     try {
         const container = await docker.createContainer(req.body);
         await container.start();
@@ -64,7 +77,7 @@ app.post('/api/containers/create', async (req, res) => {
 });
 
 // Get all images
-app.get('/api/images', async (req, res) => {
+app.get('/api/images', protect, async (req, res) => {
     try {
         const images = await docker.listImages({});
         res.json(images);
@@ -75,7 +88,7 @@ app.get('/api/images', async (req, res) => {
 });
 
 // Remove an image
-app.delete('/api/images/:id', async (req, res) => {
+app.delete('/api/images/:id', protect, async (req, res) => {
     try {
         const image = docker.getImage(req.params.id);
         await image.remove({ force: req.query.force === 'true' });
@@ -93,7 +106,7 @@ app.delete('/api/images/:id', async (req, res) => {
 });
 
 // List all containers
-app.get('/api/containers', async (req, res) => {
+app.get('/api/containers', protect, async (req, res) => {
   try {
     const containers = await docker.listContainers({ all: true });
     res.json(containers);
@@ -104,7 +117,7 @@ app.get('/api/containers', async (req, res) => {
 });
 
 // Inspect a container
-app.get('/api/containers/:id', async (req, res) => {
+app.get('/api/containers/:id', protect, async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     const data = await container.inspect();
@@ -120,7 +133,7 @@ app.get('/api/containers/:id', async (req, res) => {
 });
 
 // Get container logs (last 100 lines)
-app.get('/api/containers/:id/logs', async (req, res) => {
+app.get('/api/containers/:id/logs', protect, async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         const logStream = await container.logs({
@@ -142,7 +155,7 @@ app.get('/api/containers/:id/logs', async (req, res) => {
 
 
 // Start a container
-app.post('/api/containers/:id/start', async (req, res) => {
+app.post('/api/containers/:id/start', protect, async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     await container.start();
@@ -160,7 +173,7 @@ app.post('/api/containers/:id/start', async (req, res) => {
 });
 
 // Stop a container
-app.post('/api/containers/:id/stop', async (req, res) => {
+app.post('/api/containers/:id/stop', protect, async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     await container.stop();
@@ -178,7 +191,7 @@ app.post('/api/containers/:id/stop', async (req, res) => {
 });
 
 // Restart a container
-app.post('/api/containers/:id/restart', async (req, res) => {
+app.post('/api/containers/:id/restart', protect, async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     await container.restart();
@@ -194,7 +207,7 @@ app.post('/api/containers/:id/restart', async (req, res) => {
 });
 
 // Pause a container
-app.post('/api/containers/:id/pause', async (req, res) => {
+app.post('/api/containers/:id/pause', protect, async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         await container.pause();
@@ -210,7 +223,7 @@ app.post('/api/containers/:id/pause', async (req, res) => {
 });
 
 // Unpause a container
-app.post('/api/containers/:id/unpause', async (req, res) => {
+app.post('/api/containers/:id/unpause', protect, async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         await container.unpause();
@@ -226,7 +239,7 @@ app.post('/api/containers/:id/unpause', async (req, res) => {
 });
 
 // Remove a container
-app.delete('/api/containers/:id', async (req, res) => {
+app.delete('/api/containers/:id', protect, async (req, res) => {
     try {
         const container = docker.getContainer(req.params.id);
         await container.remove({ force: req.query.force === 'true' });
