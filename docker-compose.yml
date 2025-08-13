@@ -34,7 +34,6 @@ services:
       retries: 3
 
   backend:
-    build: ./app/backend
     image: docker-manager-backend:latest # Se aÈ™teaptÄƒ ca aceastÄƒ imagine sÄƒ fie construitÄƒ manual
     container_name: docker_manager_backend
     restart: unless-stopped
@@ -54,7 +53,7 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
       - USER_ROLE=${USER_ROLE}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # Acces la Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Acces la Docker socket
       - /opt/docker-manager/logs:/app/logs
       - /opt/docker-manager/uploads:/app/uploads
     networks:
@@ -69,7 +68,6 @@ services:
       retries: 3
 
   frontend:
-    build: ./app/frontend
     image: docker-manager-frontend:latest # Se aÈ™teaptÄƒ ca aceastÄƒ imagine sÄƒ fie construitÄƒ manual
     container_name: docker_manager_frontend
     restart: unless-stopped

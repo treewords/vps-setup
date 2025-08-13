@@ -5,8 +5,6 @@ import SystemMonitor from '../components/SystemMonitor';
 import ContainerStatsGrid from '../components/ContainerStatsGrid';
 import ContainerList from '../components/ContainerList';
 import ImageList from '../components/ImageList';
-import NetworkList from '../components/NetworkList';
-import VolumeList from '../components/VolumeList';
 import { useDocker } from '../context/DockerContext';
 
 function TabPanel(props) {
