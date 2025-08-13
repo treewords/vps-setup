@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['Admin', 'Developer', 'Viewer'],
-    default: 'Viewer',
+    default: process.env.USER_ROLE || 'Viewer',
   },
   refreshTokens: [String],
 }, { timestamps: true });
