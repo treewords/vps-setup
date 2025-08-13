@@ -5,7 +5,10 @@ const { WebSocketServer } = require('ws');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// --- WebSocket Servers ---
+const wss = new WebSocketServer({ noServer: true });
+const terminalWss = new WebSocketServer({ noServer: true });
 
 const port = 3001;
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
@@ -120,55 +123,131 @@ app.post('/api/containers/:id/restart', async (req, res) => {
   }
 });
 
-// --- WebSocket Server for Log Streaming ---
+// Pause a container
+app.post('/api/containers/:id/pause', async (req, res) => {
+    try {
+        const container = docker.getContainer(req.params.id);
+        await container.pause();
+        res.status(200).json({ message: `Container ${req.params.id} paused successfully.` });
+    } catch (error) {
+        console.error(`Error pausing container ${req.params.id}:`, error);
+        if (error.statusCode === 404) {
+            res.status(404).json({ message: `Container ${req.params.id} not found.` });
+        } else {
+            res.status(500).json({ message: 'Error pausing container', error: error.message });
+        }
+    }
+});
+
+// Unpause a container
+app.post('/api/containers/:id/unpause', async (req, res) => {
+    try {
+        const container = docker.getContainer(req.params.id);
+        await container.unpause();
+        res.status(200).json({ message: `Container ${req.params.id} unpaused successfully.` });
+    } catch (error) {
+        console.error(`Error unpausing container ${req.params.id}:`, error);
+        if (error.statusCode === 404) {
+            res.status(404).json({ message: `Container ${req.params.id} not found.` });
+        } else {
+            res.status(500).json({ message: 'Error unpausing container', error: error.message });
+        }
+    }
+});
+
+// Remove a container
+app.delete('/api/containers/:id', async (req, res) => {
+    try {
+        const container = docker.getContainer(req.params.id);
+        await container.remove({ force: req.query.force === 'true' });
+        res.status(200).json({ message: `Container ${req.params.id} removed successfully.` });
+    } catch (error) {
+        console.error(`Error removing container ${req.params.id}:`, error);
+        if (error.statusCode === 404) {
+            res.status(404).json({ message: `Container ${req.params.id} not found.` });
+        } else if (error.statusCode === 409) {
+            res.status(409).json({ message: 'You cannot remove a running container. Stop the container before attempting to remove it, or use the force option.' });
+        } else {
+            res.status(500).json({ message: 'Error removing container', error: error.message });
+        }
+    }
+});
+
+// --- WebSocket Server for Log and Stats Streaming ---
 
 wss.on('connection', (ws) => {
-  console.log('Client connected for log streaming');
+  console.log('Client connected');
   let logStream = null;
+  let statsStreams = [];
+
+  const cleanup = () => {
+    console.log('Cleaning up resources for disconnected client.');
+    if (logStream) {
+      logStream.destroy();
+      logStream = null;
+      console.log('Log stream terminated.');
+    }
+    if (statsStreams.length > 0) {
+      statsStreams.forEach(s => s.destroy());
+      statsStreams = [];
+      console.log('All stats streams terminated.');
+    }
+  };
 
   ws.on('message', async (message) => {
     try {
-      const { containerId } = JSON.parse(message);
-      console.log(`Requesting logs for container: ${containerId}`);
+      const data = JSON.parse(message);
 
-      const container = docker.getContainer(containerId);
-      if (!container) {
-        ws.send(JSON.stringify({ error: 'Container not found' }));
-        return;
+      // Handle log streaming requests
+      if (data.type === 'log' && data.containerId) {
+        console.log(`Requesting logs for container: ${data.containerId}`);
+        const container = docker.getContainer(data.containerId);
+        if (!container) {
+          ws.send(JSON.stringify({ type: 'log_error', error: 'Container not found' }));
+          return;
+        }
+
+        logStream = await container.logs({
+          follow: true, stdout: true, stderr: true, timestamps: true,
+        });
+
+        logStream.on('data', (chunk) => ws.send(JSON.stringify({ type: 'log_data', log: chunk.toString('utf8') })));
+        logStream.on('end', () => ws.send(JSON.stringify({ type: 'log_end' })));
       }
 
-      // Start streaming logs
-      logStream = await container.logs({
-        follow: true,
-        stdout: true,
-        stderr: true,
-        timestamps: true,
-      });
+      // Handle stats streaming requests
+      if (data.type === 'stats') {
+        console.log('Requesting stats for all running containers.');
+        const containers = await docker.listContainers({ filters: { status: ['running'] } });
 
-      logStream.on('data', (chunk) => {
-        // The chunk is a buffer, convert it to a string
-        ws.send(JSON.stringify({ log: chunk.toString('utf8') }));
-      });
+        // Stop any previous stats streams
+        statsStreams.forEach(s => s.destroy());
+        statsStreams = [];
 
-      logStream.on('end', () => {
-        ws.send(JSON.stringify({ log: 'Log stream ended.' }));
-        ws.close();
-      });
+        containers.forEach(containerInfo => {
+          const container = docker.getContainer(containerInfo.Id);
+          container.stats({ stream: true }, (err, stream) => {
+            if (err) {
+              console.error(`Error getting stats for ${containerInfo.Id}:`, err);
+              return;
+            }
+            statsStreams.push(stream);
+            stream.on('data', (chunk) => {
+              const stats = JSON.parse(chunk.toString('utf8'));
+              ws.send(JSON.stringify({ type: 'stats_data', id: containerInfo.Id, stats }));
+            });
+            stream.on('end', () => console.log(`Stats stream ended for ${containerInfo.Id}`));
+          });
+        });
+      }
 
     } catch (error) {
       console.error('Error in WebSocket message handler:', error);
-      ws.send(JSON.stringify({ error: 'Failed to start log stream', details: error.message }));
+      ws.send(JSON.stringify({ type: 'error', error: 'Failed to process request', details: error.message }));
     }
   });
 
-  ws.on('close', () => {
-    console.log('Client disconnected');
-    if (logStream) {
-      // This is important to prevent resource leaks on the server
-      logStream.destroy();
-      console.log('Log stream terminated.');
-    }
-  });
+  ws.on('close', cleanup);
 
   ws.on('error', (error) => {
     console.error('WebSocket error:', error);
@@ -177,6 +256,66 @@ wss.on('connection', (ws) => {
     }
   });
 });
+
+terminalWss.on('connection', async (ws, req) => {
+    // The container ID is expected to be in the URL, e.g., /ws/terminal/containerId
+    const containerId = req.url.split('/').pop();
+    console.log(`Requesting terminal for container: ${containerId}`);
+
+    try {
+        const container = docker.getContainer(containerId);
+        const exec = await container.exec({
+            Cmd: ['/bin/sh', '-c', 'TERM=xterm-256color; export TERM; /bin/sh'],
+            AttachStdin: true,
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true,
+        });
+
+        const stream = await exec.start({ hijack: true, stdin: true });
+
+        // Pipe WebSocket to container stdin
+        ws.on('message', (data) => {
+            stream.write(data);
+        });
+
+        // Pipe container stdout/stderr to WebSocket
+        stream.on('data', (chunk) => {
+            ws.send(chunk);
+        });
+
+        // Handle close events
+        ws.on('close', () => {
+            stream.end();
+        });
+        stream.on('end', () => {
+            ws.close();
+        });
+
+    } catch (error) {
+        console.error(`Error setting up terminal for ${containerId}:`, error);
+        ws.send(`Error: ${error.message}`);
+        ws.close();
+    }
+});
+
+
+server.on('upgrade', (request, socket, head) => {
+  const pathname = request.url.split('?')[0];
+
+  if (pathname.startsWith('/ws/terminal/')) {
+    terminalWss.handleUpgrade(request, socket, head, (ws) => {
+      terminalWss.emit('connection', ws, request);
+    });
+  } else if (pathname === '/ws') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
 
 server.listen(port, () => {
   console.log(`Docker Manager backend listening at http://localhost:${port}`);
