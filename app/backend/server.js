@@ -30,7 +30,7 @@ mongoose.connect(process.env.MONGODB_URI)
                     await User.create({
                         username: process.env.DEFAULT_ADMIN_USER,
                         password: process.env.DEFAULT_ADMIN_PASSWORD,
-                        role: 'Admin',
+                        role: process.env.USER_ROLE,
                     });
                     console.log('Default admin user created with Admin role.');
                 }
