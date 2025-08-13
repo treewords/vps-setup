@@ -27,3 +27,15 @@ export const stopContainer = (id) => {
 export const restartContainer = (id) => {
   return apiClient.post(`/containers/${id}/restart`);
 };
+
+export const pauseContainer = (id) => {
+  return apiClient.post(`/containers/${id}/pause`);
+};
+
+export const unpauseContainer = (id) => {
+  return apiClient.post(`/containers/${id}/unpause`);
+};
+
+export const removeContainer = (id, force = false) => {
+  return apiClient.delete(`/containers/${id}?force=${force}`);
+};

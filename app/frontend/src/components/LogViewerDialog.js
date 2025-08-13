@@ -42,16 +42,16 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
         ws.current.onopen = () => {
           setWsStatus('Connected');
           // Send the container ID to the backend to start the log stream
-          ws.current.send(JSON.stringify({ containerId }));
+          ws.current.send(JSON.stringify({ type: 'log', containerId }));
         };
 
         ws.current.onmessage = (event) => {
           const message = JSON.parse(event.data);
-          if (message.log) {
+          if (message.type === 'log_data' && message.log) {
             setLogs(prev => prev + message.log);
-          } else if (message.error) {
+          } else if (message.type === 'log_error' || message.type === 'error') {
             console.error("WebSocket error:", message.error);
-            setLogs(prev => prev + `\n--- WEBSOCKET ERROR: ${message.details} ---\n`);
+            setLogs(prev => prev + `\n--- WEBSOCKET ERROR: ${message.details || message.error} ---\n`);
           }
         };
 
