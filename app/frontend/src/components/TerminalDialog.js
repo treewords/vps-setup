@@ -37,6 +37,14 @@ const TerminalDialog = ({ open, onClose, containerId, containerName }) => {
       const wsUrl = `${wsProtocol}://${wsHost}/ws/terminal/${containerId}`;
 
       const socket = new WebSocket(wsUrl);
+
+      socket.onclose = () => {
+          if (xterm.current) {
+              xterm.current.writeln('');
+              xterm.current.writeln('--- CONNECTION CLOSED ---');
+          }
+      };
+
       const attachAddon = new AttachAddon(socket);
       xterm.current.loadAddon(attachAddon);
 
