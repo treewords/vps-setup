@@ -1,4 +1,46 @@
-# VPS Setup Script for Docker Manager
+# Docker Manager Dashboard
+
+This project is a web-based management interface for Docker, designed to be deployed on a server provisioned with the included `vps-setup.sh` script. It provides a modern, responsive UI for managing Docker containers.
+
+## Features
+
+- **List Containers**: View all containers (running, stopped, etc.) with their status and key information.
+- **Container Actions**: Start, stop, and restart containers directly from the UI.
+- **Inspect Container**: View detailed information about a container in a clean, formatted view.
+- **Real-time Logs**: Stream container logs in real-time and view historical logs.
+
+## Technology Stack
+
+- **Backend**: Node.js with Express.js, using `dockerode` to interact with the Docker API.
+- **Frontend**: React with Material-UI for a modern and responsive design.
+- **Real-time Communication**: WebSockets (`ws` library) for live log streaming.
+- **Containerization**: Docker and Docker Compose.
+
+## Local Development
+
+To run the application in a local development environment, you need Docker and Docker Compose installed.
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd <repository-directory>
+    ```
+
+2.  **Start the application:**
+    ```bash
+    docker-compose up --build
+    ```
+    This command will build the Docker images for the frontend and backend and start the services.
+
+3.  **Access the application:**
+    -   The frontend will be available at [http://localhost:3000](http://localhost:3000).
+    -   The backend API will be available at [http://localhost:3001](http://localhost:3001).
+
+The development server supports hot-reloading. Any changes you make to the source code in `app/backend` or `app/frontend` will be reflected automatically.
+
+---
+
+# Production Deployment with VPS Setup Script
 
 This script automates the setup and hardening of a Debian 11/12 server, preparing it to host a web application called "Docker Manager". It configures a secure, production-ready environment with Docker, Nginx as a reverse proxy, SSL, and various management utilities.
 
