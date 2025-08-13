@@ -16,9 +16,30 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+const User = require('./models/User');
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('MongoDB connected...'))
+    .then(() => {
+        console.log('MongoDB connected...');
+        // Seed initial admin user if no users exist
+        const seedAdminUser = async () => {
+            try {
+                const userCount = await User.countDocuments();
+                if (userCount === 0) {
+                    console.log('No users found, creating default admin user...');
+                    await User.create({
+                        username: process.env.DEFAULT_ADMIN_USER,
+                        password: process.env.DEFAULT_ADMIN_PASSWORD,
+                    });
+                    console.log('Default admin user created.');
+                }
+            } catch (error) {
+                console.error('Error seeding admin user:', error);
+            }
+        };
+        seedAdminUser();
+    })
     .catch(err => console.error('MongoDB connection error:', err));
 
 
