@@ -1,5 +1,6 @@
 import React from 'react';
 import ContainerList from './components/ContainerList';
+import SystemMonitor from './components/SystemMonitor';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import AppBar from '@mui/material/AppBar';
@@ -24,7 +25,8 @@ function App() {
           </Typography>
         </Toolbar>
       </AppBar>
-      <Container sx={{ mt: 4 }}>
+      <Container sx={{ mt: 4, maxWidth: 'xl' }}>
+        <SystemMonitor />
         <ContainerList />
       </Container>
     </ThemeProvider>
