@@ -27,20 +27,24 @@ const ImageActions = ({ onActionComplete }) => {
 
     const handlePullImage = async () => {
         try {
-            await api.pullImage(pullImageName);
+            const response = await api.pullImage(pullImageName);
+            alert(response.data.message);
             onActionComplete();
         } catch (error) {
             console.error("Error pulling image", error);
+            alert(`Error: ${error.response?.data?.message || error.message}`);
         }
         handleClose();
     };
 
     const handleBuildImage = async () => {
         try {
-            await api.buildImage(buildRemoteUrl, buildTag);
+            const response = await api.buildImage(buildRemoteUrl, buildTag);
+            alert(response.data.message);
             onActionComplete();
         } catch (error) {
             console.error("Error building image", error);
+            alert(`Error: ${error.response?.data?.message || error.message}`);
         }
         handleClose();
     };

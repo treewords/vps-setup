@@ -33,25 +33,29 @@ router.delete('/:id', protect, authorize('Admin'), async (req, res) => {
     }
 });
 
-// Pull an image
+// Pull an image (asynchronous)
 router.post('/pull', protect, authorize('Admin', 'Developer'), (req, res) => {
     const { imageName } = req.body;
     if (!imageName) {
         return res.status(400).json({ message: 'Image name is required.' });
     }
+
+    // Immediately respond to the client
+    res.status(202).json({ message: `Pulling image '${imageName}'. This may take a while. Please refresh the image list later to see the result.` });
+
+    // Perform the pull in the background
     docker.pull(imageName, (err, stream) => {
         if (err) {
-            console.error(`Error pulling image ${imageName}:`, err);
-            return res.status(500).json({ message: 'Error pulling image', error: err.message });
+            console.error(`Error initiating image pull for ${imageName}:`, err);
+            // Cannot send response here
+            return;
         }
         docker.modem.followProgress(stream, (err, output) => {
             if (err) {
                 console.error(`Error during image pull ${imageName}:`, err);
-                return res.status(500).json({ message: 'Error during image pull', error: err.message });
+            } else {
+                console.log(`Image ${imageName} pulled successfully.`);
             }
-            res.status(200).json({ message: `Image ${imageName} pulled successfully.` });
-        }, (event) => {
-            // I can optionally handle progress events here, but not sending to client
         });
     });
 });
@@ -76,7 +80,7 @@ router.post('/:id/tag', protect, authorize('Admin', 'Developer'), async (req, re
     }
 });
 
-// Build an image from a remote git repository
+// Build an image from a remote git repository (asynchronous)
 router.post('/build', protect, authorize('Admin', 'Developer'), (req, res) => {
     const { remote, t: tag } = req.body; // 't' for tag, following Docker CLI conventions
     if (!remote) {
@@ -88,19 +92,23 @@ router.post('/build', protect, authorize('Admin', 'Developer'), (req, res) => {
         t: tag,
     };
 
+    // Immediately respond to the client
+    res.status(202).json({ message: `Build started from ${remote}. This may take a while. Please refresh the image list later to see the result.` });
+
+    // Perform the build in the background
     docker.buildImage(null, buildOptions, (err, stream) => {
         if (err) {
-            console.error('Error building image:', err);
-            return res.status(500).json({ message: 'Error building image', error: err.message });
+            console.error(`Error initiating image build from ${remote}:`, err);
+            // Cannot send response here
+            return;
         }
+
         docker.modem.followProgress(stream, (err, output) => {
             if (err) {
-                console.error('Error during image build:', err);
-                return res.status(500).json({ message: 'Error during image build', error: err.message });
+                console.error(`Error during image build from ${remote}:`, err);
+            } else {
+                console.log(`Image built successfully from ${remote}.`);
             }
-            res.status(200).json({ message: `Image built successfully from ${remote}`, output });
-        }, (event) => {
-            // Progress event
         });
     });
 });
