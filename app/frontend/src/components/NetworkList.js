@@ -5,6 +5,8 @@ import {
 import { Delete, Refresh } from '@mui/icons-material';
 import * as api from '../services/api';
 import ConfirmationDialog from './ConfirmationDialog';
+import CreateNetworkDialog from './CreateNetworkDialog';
+import NetworkInspectDialog from './NetworkInspectDialog';
 import { useDocker } from '../context/DockerContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,7 +14,10 @@ const NetworkList = () => {
   const { networks, loading, refresh } = useDocker();
   const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [inspectDialogOpen, setInspectDialogOpen] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
+  const [selectedNetworkId, setSelectedNetworkId] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
   const handleRemoveClick = (network) => {
@@ -36,13 +41,23 @@ const NetworkList = () => {
     }
   };
 
+  const handleInspectClick = (networkId) => {
+    setSelectedNetworkId(networkId);
+    setInspectDialogOpen(true);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-800">Networks</h2>
-        <Button variant="contained" onClick={refresh} disabled={loading.networks} startIcon={<Refresh />}>
-          Refresh
-        </Button>
+        <div>
+            <Button variant="contained" onClick={() => setCreateDialogOpen(true)} sx={{ mr: 1 }}>
+                Create Network
+            </Button>
+            <Button variant="contained" onClick={refresh} disabled={loading.networks} startIcon={<Refresh />}>
+                Refresh
+            </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white">
@@ -62,7 +77,11 @@ const NetworkList = () => {
               </tr>
             ) : networks.map((network) => (
               <tr key={network.Id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">{network.Name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="cursor-pointer text-blue-600 hover:underline" onClick={() => handleInspectClick(network.Id)}>
+                        {network.Name}
+                    </span>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-gray-500">{network.Id.substring(0, 12)}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{network.Driver}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{network.Scope}</td>
@@ -96,6 +115,19 @@ const NetworkList = () => {
           description={`Are you sure you want to remove this network? ${selectedNetwork.Name}`}
         />
       )}
+      <CreateNetworkDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onNetworkCreated={() => {
+            setCreateDialogOpen(false);
+            refresh();
+        }}
+      />
+        <NetworkInspectDialog
+            open={inspectDialogOpen}
+            onClose={() => setInspectDialogOpen(false)}
+            networkId={selectedNetworkId}
+        />
     </div>
   );
 };
