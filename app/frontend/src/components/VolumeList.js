@@ -5,6 +5,8 @@ import {
 import { Delete, Refresh, SaveAlt } from '@mui/icons-material';
 import * as api from '../services/api';
 import ConfirmationDialog from './ConfirmationDialog';
+import CreateVolumeDialog from './CreateVolumeDialog';
+import VolumeInspectDialog from './VolumeInspectDialog';
 import { useDocker } from '../context/DockerContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,7 +14,10 @@ const VolumeList = () => {
   const { volumes, loading, refresh } = useDocker();
   const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [inspectDialogOpen, setInspectDialogOpen] = useState(false);
   const [selectedVolume, setSelectedVolume] = useState(null);
+  const [selectedVolumeName, setSelectedVolumeName] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
   const handleRemoveClick = (volume) => {
@@ -46,13 +51,23 @@ const VolumeList = () => {
     }
     };
 
+    const handleInspectClick = (volumeName) => {
+        setSelectedVolumeName(volumeName);
+        setInspectDialogOpen(true);
+    };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-800">Volumes</h2>
-        <Button variant="contained" onClick={refresh} disabled={loading.volumes} startIcon={<Refresh />}>
-          Refresh
-        </Button>
+        <div>
+            <Button variant="contained" onClick={() => setCreateDialogOpen(true)} sx={{ mr: 1 }}>
+                Create Volume
+            </Button>
+            <Button variant="contained" onClick={refresh} disabled={loading.volumes} startIcon={<Refresh />}>
+                Refresh
+            </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white">
@@ -71,7 +86,11 @@ const VolumeList = () => {
               </tr>
             ) : volumes.map((volume) => (
               <tr key={volume.Name} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">{volume.Name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="cursor-pointer text-blue-600 hover:underline" onClick={() => handleInspectClick(volume.Name)}>
+                        {volume.Name}
+                    </span>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">{volume.Driver}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{volume.Mountpoint}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -113,6 +132,19 @@ const VolumeList = () => {
           description={`Are you sure you want to remove this volume? ${selectedVolume.Name}`}
         />
       )}
+        <CreateVolumeDialog
+            open={createDialogOpen}
+            onClose={() => setCreateDialogOpen(false)}
+            onVolumeCreated={() => {
+                setCreateDialogOpen(false);
+                refresh();
+            }}
+      />
+      <VolumeInspectDialog
+        open={inspectDialogOpen}
+        onClose={() => setInspectDialogOpen(false)}
+        volumeName={selectedVolumeName}
+        />
     </div>
   );
 };
