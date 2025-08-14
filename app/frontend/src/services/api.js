@@ -102,3 +102,61 @@ export const getImages = () => {
 export const removeImage = (id, force = false) => {
     return apiClient.delete(`/images/${id}?force=${force}`);
 };
+
+export const pullImage = (imageName) => {
+    return apiClient.post('/images/pull', { imageName });
+};
+
+export const buildImage = (remote, tag) => {
+    return apiClient.post('/images/build', { remote, t: tag });
+};
+
+export const tagImage = (id, repo, tag) => {
+    return apiClient.post(`/images/${id}/tag`, { repo, tag });
+};
+
+// --- Network API Calls ---
+export const getNetworks = () => {
+    return apiClient.get('/networks');
+};
+
+export const inspectNetwork = (id) => {
+    return apiClient.get(`/networks/${id}`);
+};
+
+export const createNetwork = (config) => {
+    return apiClient.post('/networks/create', config);
+};
+
+export const removeNetwork = (id) => {
+    return apiClient.delete(`/networks/${id}`);
+};
+
+export const connectToNetwork = (id, containerId) => {
+    return apiClient.post(`/networks/${id}/connect`, { containerId });
+};
+
+export const disconnectFromNetwork = (id, containerId) => {
+    return apiClient.post(`/networks/${id}/disconnect`, { containerId });
+};
+
+// --- Volume API Calls ---
+export const getVolumes = () => {
+    return apiClient.get('/volumes');
+};
+
+export const inspectVolume = (name) => {
+    return apiClient.get(`/volumes/${name}`);
+};
+
+export const createVolume = (config) => {
+    return apiClient.post('/volumes/create', config);
+};
+
+export const removeVolume = (name) => {
+    return apiClient.delete(`/volumes/${name}`);
+};
+
+export const backupVolume = (name) => {
+    return apiClient.post(`/volumes/${name}/backup`);
+};
