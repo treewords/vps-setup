@@ -57,9 +57,17 @@ const CreateContainerDialog = ({ open, onClose, onCreated }) => {
         return portBindings;
     };
 
+    const exposedPorts = {};
+    ports.forEach(p => {
+        if (p.container) {
+            exposedPorts[`${p.container}/tcp`] = {};
+        }
+    });
+
     const config = {
       Image: image,
       name: name,
+      ExposedPorts: exposedPorts,
       Env: envs.filter(e => e.key).map(e => `${e.key}=${e.value}`),
       HostConfig: {
         PortBindings: formatPorts(),
