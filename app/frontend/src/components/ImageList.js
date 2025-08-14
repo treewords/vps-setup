@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import {
   Button, Chip, IconButton, Tooltip
 } from '@mui/material';
-import { Delete, Refresh } from '@mui/icons-material';
+import { Delete, Refresh, Label } from '@mui/icons-material';
 import * as api from '../services/api';
 import ConfirmationDialog from './ConfirmationDialog';
+import ImageActions from './ImageActions';
 import { useDocker } from '../context/DockerContext';
 import { useAuth } from '../context/AuthContext';
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, TextField } from '@mui/material';
 
 const formatSize = (bytes) => {
     if (bytes === 0) return '0 B';
@@ -22,8 +24,11 @@ const ImageList = () => {
   const { images, loading, refresh } = useDocker();
   const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [newRepo, setNewRepo] = useState('');
+  const [newTag, setNewTag] = useState('');
 
   const handleRemoveClick = (image) => {
     setSelectedImage(image);
@@ -46,13 +51,39 @@ const ImageList = () => {
     }
   };
 
+  const handleTagClick = (image) => {
+    setSelectedImage(image);
+    setTagDialogOpen(true);
+  };
+
+  const handleTagDialogClose = () => {
+    setTagDialogOpen(false);
+    setSelectedImage(null);
+    setNewRepo('');
+    setNewTag('');
+    };
+
+    const handleTagImage = async () => {
+        if (!selectedImage) return;
+        try {
+            await api.tagImage(selectedImage.Id, newRepo, newTag);
+            refresh();
+        } catch (error) {
+            console.error("Error tagging image", error);
+        }
+        handleTagDialogClose();
+    };
+
   return (
     <div>
        <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-800">Images</h2>
-        <Button variant="contained" onClick={refresh} disabled={loading.images} startIcon={<Refresh />}>
-            Refresh
-        </Button>
+        <div>
+            <ImageActions onActionComplete={refresh} />
+            <Button variant="contained" onClick={refresh} disabled={loading.images} startIcon={<Refresh />} sx={{ ml: 1 }}>
+                Refresh
+            </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white">
@@ -82,13 +113,22 @@ const ImageList = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatSize(image.Size)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                         {user?.role === 'Admin' && (
-                            <Tooltip title="Remove Image">
-                                <span>
-                                    <IconButton onClick={() => handleRemoveClick(image)}>
-                                        <Delete className="text-red-500" />
-                                    </IconButton>
-                                </span>
-                            </Tooltip>
+                            <>
+                                <Tooltip title="Tag Image">
+                                    <span>
+                                        <IconButton onClick={() => handleTagClick(image)}>
+                                            <Label />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                                <Tooltip title="Remove Image">
+                                    <span>
+                                        <IconButton onClick={() => handleRemoveClick(image)}>
+                                            <Delete className="text-red-500" />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                            </>
                         )}
                     </td>
                 </tr>
@@ -110,6 +150,39 @@ const ImageList = () => {
             description={`Are you sure you want to remove this image? ${selectedImage.RepoTags ? selectedImage.RepoTags[0] : selectedImage.Id.substring(7,19)}`}
           />
       )}
+        <Dialog open={tagDialogOpen} onClose={handleTagDialogClose}>
+            <DialogTitle>Tag Image</DialogTitle>
+            <DialogContent>
+                <DialogContentText>
+                    Enter a new repository and tag for the image.
+                </DialogContentText>
+                <TextField
+                    autoFocus
+                    margin="dense"
+                    id="repo"
+                    label="Repository"
+                    type="text"
+                    fullWidth
+                    variant="standard"
+                    value={newRepo}
+                    onChange={(e) => setNewRepo(e.target.value)}
+                />
+                <TextField
+                    margin="dense"
+                    id="tag"
+                    label="Tag"
+                    type="text"
+                    fullWidth
+                    variant="standard"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                />
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={handleTagDialogClose}>Cancel</Button>
+                <Button onClick={handleTagImage}>Tag</Button>
+            </DialogActions>
+        </Dialog>
     </div>
   );
 };

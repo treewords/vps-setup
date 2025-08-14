@@ -5,6 +5,8 @@ import SystemMonitor from '../components/SystemMonitor';
 import ContainerStatsGrid from '../components/ContainerStatsGrid';
 import ContainerList from '../components/ContainerList';
 import ImageList from '../components/ImageList';
+import NetworkList from '../components/NetworkList';
+import VolumeList from '../components/VolumeList';
 import { useDocker } from '../context/DockerContext';
 
 function TabPanel(props) {
@@ -44,6 +46,8 @@ const Dashboard = () => {
                 <Tabs value={currentTab} onChange={handleTabChange} aria-label="dashboard tabs">
                 <Tab label="Containers" />
                 <Tab label="Images" />
+                <Tab label="Networks" />
+                <Tab label="Volumes" />
                 </Tabs>
             </Box>
             <div className="p-6">
@@ -52,6 +56,12 @@ const Dashboard = () => {
                 </TabPanel>
                 <TabPanel value={currentTab} index={1}>
                     <ImageList />
+                </TabPanel>
+                <TabPanel value={currentTab} index={2}>
+                    <NetworkList />
+                </TabPanel>
+                <TabPanel value={currentTab} index={3}>
+                    <VolumeList />
                 </TabPanel>
             </div>
         </div>
