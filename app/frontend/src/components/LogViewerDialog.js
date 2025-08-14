@@ -7,6 +7,7 @@ import * as api from '../services/api';
 
 const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
   const [logs, setLogs] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [wsStatus, setWsStatus] = useState('Disconnected');
   const ws = useRef(null);
   const logsEndRef = useRef(null);
@@ -19,14 +20,26 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
     const fetchAndStreamLogs = async () => {
       if (open && containerId) {
         setLogs('');
+        setErrorMessage('');
         setWsStatus('Connecting...');
+        let criticalError = false;
 
         try {
           const response = await api.getContainerLogs(containerId);
           setLogs(prev => prev + response.data);
         } catch (error) {
           console.error("Error fetching historical logs", error);
-          setLogs(prev => prev + `\n--- ERROR FETCHING HISTORICAL LOGS: ${error.message} ---\n`);
+          if (error.response && error.response.status === 501) {
+            setErrorMessage('Could not fetch logs. The container is using a logging driver that does not support reading logs via the Docker API. To view logs, the container must use the "json-file" or "journald" logging driver.');
+            criticalError = true;
+          } else {
+            setLogs(prev => prev + `\n--- ERROR FETCHING HISTORICAL LOGS: ${error.message} ---\n`);
+          }
+        }
+
+        if (criticalError) {
+          setWsStatus('Error');
+          return;
         }
 
         const isProduction = process.env.NODE_ENV === 'production';
@@ -94,10 +107,19 @@ const LogViewerDialog = ({ open, onClose, containerId, containerName }) => {
         </IconButton>
       </DialogTitle>
       <DialogContent className="p-4 overflow-y-auto font-mono text-gray-300 bg-gray-800">
-          <pre className="m-0 whitespace-pre-wrap break-all">
-            {logs}
-          </pre>
-          <div ref={logsEndRef} />
+        {errorMessage ? (
+            <div className="bg-red-900 border border-red-400 text-red-100 px-4 py-3 rounded-lg relative" role="alert">
+                <strong className="font-bold">Error: </strong>
+                <span className="block sm:inline">{errorMessage}</span>
+            </div>
+        ) : (
+            <>
+                <pre className="m-0 whitespace-pre-wrap break-all">
+                    {logs}
+                </pre>
+                <div ref={logsEndRef} />
+            </>
+        )}
       </DialogContent>
     </Dialog>
   );
