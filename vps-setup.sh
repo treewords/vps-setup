@@ -47,7 +47,7 @@ ADMIN_PASSWORD=""
 print_header() {
     echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║              🛡️  SETUP VPS DOCKER MANAGER v3.0                   ║${NC}"
-    echo -e "${BLUE}║                    Instalare Completă și Securizată              ║${NC}"
+    echo -e "${BLUE}║                Instalare Completă și Securizată                  ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
