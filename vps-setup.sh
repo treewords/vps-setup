@@ -1941,7 +1941,7 @@ EOF
     echo -e "${BLUE}🛠️  Comenzi utile:${NC}"
     echo -e "• Verificare sistem: ${CYAN}system-check${NC}"
     echo -e "• Monitorizare live: ${CYAN}docker-monitor${NC}"
-    echo "• Backup manual: ${CYAN}docker-backup${NC}"
+    echo -e "• Backup manual: ${CYAN}docker-backup${NC}"
     echo ""
 
     echo -e "${GREEN}════════════════════════════════════════════════════════════════════${NC}"
